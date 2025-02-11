@@ -102,9 +102,9 @@ Then, build the project with:
 
 📌 Tech Stack
 
-React Native 0.77
-Auth0 for Authentication
-Redux for State Management
-React Navigation for Routing
-NativeWind (Tailwind CSS) for Styling
-Axios for API Calls
+-- React Native 0.77
+-- Auth0 for Authentication
+-- Redux for State Management
+-- React Navigation for Routing
+-- NativeWind (Tailwind CSS) for Styling
+-- Axios for API Calls
