@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Trivia",
+    "slug": "Trivia",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.triviapay.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.triviapay.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [
+            {
+              "scheme": "triviapay",
+              "host": "dev-82x6ztlibtkrc5bt.us.auth0.com",
+              "pathPrefix": "/android/com.triviapay.app/callback"
+            },
+            {
+              "scheme": "triviapay",
+              "host": "dev-82x6ztlibtkrc5bt.us.auth0.com",
+              "pathPrefix": "/android/com.triviapay.app/logout"
+            }
+          ]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "scheme": "triviapay",
+    "plugins": [
+      [
+        "react-native-auth0",
+        {
+          "domain": "dev-82x6ztlibtkrc5bt.us.auth0.com",
+          "customScheme": "triviapay"
+        }
+      ]
+    ]
+  }
+}
