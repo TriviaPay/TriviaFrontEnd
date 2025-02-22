@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "181823867662",
+    "project_id": "inspired-bazaar-451605-s8",
+    "storage_bucket": "inspired-bazaar-451605-s8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:181823867662:android:1927b901a34cacae26a55f",
+        "android_client_info": {
+          "package_name": "com.TriviaPay"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAMn27isbnSgz38J7Ion0QcPk_YnqkFVRw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
