@@ -1,4 +1,3 @@
-
 import { Platform } from 'react-native';
 
 const AUTH0_DOMAIN = 'triviapay.us.auth0.com';
@@ -12,15 +11,15 @@ export const AUTH0_CONFIG = {
 
 const getRedirectUri = () => {
   return Platform.select({
-    ios: `${BUNDLE_IDENTIFIER}://${AUTH0_DOMAIN}/ios/${BUNDLE_IDENTIFIER}/callback`,
-    android: `${BUNDLE_IDENTIFIER}://${AUTH0_DOMAIN}/android/${BUNDLE_IDENTIFIER}/callback`
+    ios: `${BUNDLE_IDENTIFIER}.auth0://${AUTH0_DOMAIN}/ios/${BUNDLE_IDENTIFIER}/callback`,
+    android: `com.trivia://${AUTH0_DOMAIN}/android/com.trivia/callback`
   });
 };
 
 const getLogoutUri = () => {
   return Platform.select({
-    ios: `${BUNDLE_IDENTIFIER}://${AUTH0_DOMAIN}/ios/${BUNDLE_IDENTIFIER}/callback`,
-    android: `${BUNDLE_IDENTIFIER}://${AUTH0_DOMAIN}/android/${BUNDLE_IDENTIFIER}/callback`
+    ios: `${BUNDLE_IDENTIFIER}.auth0://${AUTH0_DOMAIN}/ios/${BUNDLE_IDENTIFIER}/callback`,
+    android: `com.trivia://${AUTH0_DOMAIN}/android/com.trivia/callback`
   });
 };
 

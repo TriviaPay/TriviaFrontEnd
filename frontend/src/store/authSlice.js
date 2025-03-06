@@ -60,7 +60,6 @@ export const logoutUser = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       await logoutWithAuth0();
-      await EncryptedStorage.removeItem('auth_tokens');
       return true;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -74,6 +73,14 @@ const authSlice = createSlice({
   reducers: {
     setEmailVerificationSent: (state, action) => {
       state.emailVerificationSent = action.payload;
+    },
+    resetAuthState: (state) => {
+      state.isAuthenticated = false;
+      state.user = null;
+      state.accessToken = null;
+      state.emailVerificationSent = false;
+      state.error = null;
+      state.isLoading = false;
     }
   },
   extraReducers: (builder) => {
@@ -111,13 +118,23 @@ const authSlice = createSlice({
           state.accessToken = action.payload.accessToken;
         }
       })
+      .addCase(logoutUser.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
       .addCase(logoutUser.fulfilled, (state) => {
+        state.isLoading = false;
         state.isAuthenticated = false;
         state.user = null;
         state.accessToken = null;
+        state.emailVerificationSent = false;
+      })
+      .addCase(logoutUser.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   }
 });
 
-export const { setEmailVerificationSent } = authSlice.actions;
+export const { setEmailVerificationSent, resetAuthState } = authSlice.actions;
 export default authSlice.reducer;

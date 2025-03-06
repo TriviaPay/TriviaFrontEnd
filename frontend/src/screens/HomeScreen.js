@@ -3,7 +3,8 @@
 import { useEffect } from "react"
 import { View, Text, TouchableOpacity, Alert, SafeAreaView, StatusBar, Dimensions, Platform, Image } from "react-native"
 import { useNavigation } from "@react-navigation/native"
-import { logoutWithAuth0 } from "../services/auth"
+import { useDispatch } from "react-redux"
+import { logoutUser } from "../store/authSlice"
 import { Linking } from "react-native"
 import LinearGradient from "react-native-linear-gradient"
 import { useSelector } from "react-redux"
@@ -12,6 +13,7 @@ const { width, height } = Dimensions.get("window")
 
 const HomeScreen = () => {
   const navigation = useNavigation()
+  const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
 
   // Extract username from email 
@@ -47,7 +49,8 @@ const HomeScreen = () => {
   const handleLogout = async () => {
     try {
       console.log("Initiating Auth0 logout...")
-      await logoutWithAuth0()
+      await dispatch(logoutUser()).unwrap()
+      navigation.replace("Auth")
     } catch (error) {
       console.error("Logout error:", error)
       Alert.alert("Logout Failed", error.message)

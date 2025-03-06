@@ -6,6 +6,8 @@ import {
   AUTH0_LOGOUT_URI,
 } from './auth0-config';
 import EncryptedStorage from 'react-native-encrypted-storage';
+import { store } from '../store/store';
+import { resetAuthState } from '../store/authSlice';
 
 const auth0 = new Auth0(AUTH0_CONFIG);
 
@@ -64,15 +66,19 @@ export const getUserInfo = async accessToken => {
 export const logoutWithAuth0 = async () => {
   try {
     console.log('Initiating logout...');
+    // First clear the local storage
+    await EncryptedStorage.removeItem('auth_tokens');
+    
+    // Then clear the Auth0 session
     await auth0.webAuth.clearSession({
       returnTo: AUTH0_LOGOUT_URI,
       federated: true,
     });
-    await EncryptedStorage.removeItem('auth_tokens');
+    
     console.log('Logout successful');
   } catch (error) {
     console.error('Logout error:', error);
-    // Even if there's an error, clear local storage
+    // Even if there's an error, ensure local storage is cleared
     await EncryptedStorage.removeItem('auth_tokens');
     throw error;
   }
