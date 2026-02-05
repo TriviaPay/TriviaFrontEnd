@@ -1,0 +1,133 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Button snapshots outline lg disabled 1`] = `
+<View
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": true,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={false}
+  onClick={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    {
+      "alignItems": "center",
+      "backgroundColor": "transparent",
+      "borderColor": "#7c3aed",
+      "borderRadius": 8,
+      "borderWidth": 2,
+      "flexDirection": "row",
+      "justifyContent": "center",
+      "opacity": 0.5,
+      "paddingHorizontal": 32,
+      "paddingVertical": 16,
+    }
+  }
+>
+  <Text
+    style={
+      [
+        {
+          "fontWeight": "600",
+        },
+        {
+          "color": "#7c3aed",
+        },
+        {
+          "fontSize": 18,
+        },
+        {
+          "opacity": 0.7,
+        },
+        undefined,
+      ]
+    }
+  >
+    Outline
+  </Text>
+</View>
+`;
+
+exports[`Button snapshots primary md 1`] = `
+<View
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": false,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={false}
+  onClick={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    {
+      "alignItems": "center",
+      "backgroundColor": "#7c3aed",
+      "borderRadius": 8,
+      "flexDirection": "row",
+      "justifyContent": "center",
+      "opacity": 1,
+      "paddingHorizontal": 24,
+      "paddingVertical": 8,
+    }
+  }
+>
+  <Text
+    style={
+      [
+        {
+          "fontWeight": "600",
+        },
+        {
+          "color": "#ffffff",
+        },
+        {
+          "fontSize": 16,
+        },
+        false,
+        undefined,
+      ]
+    }
+  >
+    Submit
+  </Text>
+</View>
+`;

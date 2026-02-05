@@ -1,0 +1,247 @@
+/**
+ * Shop Items Data - TypeScript Implementation
+ * Professional shop items data with comprehensive features
+ */
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  gems?: number;
+  price?: string;
+  description?: string;
+  image: any;
+  category: string;
+  badge?: string;
+  discount?: string;
+  features?: string[];
+  coins?: number;
+}
+
+export interface ShopItemsData {
+  packs: ShopItem[];
+  boosts: ShopItem[];
+  cosmetics: ShopItem[];
+  special: ShopItem[];
+}
+
+const boostItems: ShopItem[] = [
+  {
+    id: 'streak-saver',
+    name: 'Streak Saver',
+    gems: 100,
+    price: '0.49',
+    description: 'Save your streak',
+    image: require('../../assets/icons/fire.png'),
+    category: 'boosts',
+  },
+  {
+    id: 'question-reroll',
+    name: 'Question Reroll',
+    gems: 80,
+    description: 'Change your question',
+    image: require('../../assets/icons/diamond.png'),
+    category: 'boosts',
+  },
+  {
+    id: 'extra-chance',
+    name: 'Extra Chance',
+    gems: 150,
+    price: '0.99',
+    description: 'Extra chance if you answer wrong',
+    image: require('../../assets/icons/diamonds.png'),
+    category: 'boosts',
+  },
+  {
+    id: 'hint',
+    name: 'Hint',
+    gems: 30,
+    description: 'Get a hint for the current question',
+    image: require('../../assets/icons/diamond.png'),
+    category: 'boosts',
+  },
+  {
+    id: 'fifty-fifty',
+    name: '50-50',
+    gems: 50,
+    description: 'Remove two wrong answers',
+    image: require('../../assets/icons/spin1.png'),
+    category: 'boosts',
+  },
+  {
+    id: 'change-question',
+    name: 'Change Question',
+    gems: 10,
+    description: 'Get a different question',
+    image: require('../../assets/icons/diamond.png'),
+    category: 'boosts',
+  },
+  {
+    id: 'auto-submit',
+    name: 'Auto Submit',
+    gems: 300,
+    description: 'Automatically submit correct answers',
+    image: require('../../assets/icons/diamond.png'),
+    category: 'boosts',
+  },
+];
+
+const cosmeticItems: ShopItem[] = [
+  {
+    id: 'avatar-pack',
+    name: 'Avatar Pack',
+    gems: 500,
+    price: '0.99',
+    description: 'Unlocks custom avatars',
+    image: require('../../assets/images/pic.png'),
+    category: 'cosmetics',
+  },
+  {
+    id: 'button-skins',
+    name: 'Answer Button Skins',
+    gems: 200,
+    price: '0.99',
+    description: 'Stylish buttons for trivia',
+    image: require('../../assets/icons/diamond.png'),
+    category: 'cosmetics',
+  },
+  {
+    id: 'confetti',
+    name: 'Confetti Win FX',
+    gems: 150,
+    description: 'Visual effect after winning',
+    image: require('../../assets/icons/diamond.png'),
+    category: 'cosmetics',
+  },
+  {
+    id: 'profile-borders',
+    name: 'Profile Borders',
+    gems: 250,
+    description: 'Fancy borders for profiles',
+    image: require('../../assets/icons/diamond.png'),
+    category: 'cosmetics',
+  },
+  {
+    id: 'chat-bubbles',
+    name: 'Chat Bubble Skins',
+    gems: 300,
+    price: '0.99',
+    description: 'Custom chat styles',
+    image: require('../../assets/icons/diamonds.png'),
+    category: 'cosmetics',
+  },
+  {
+    id: 'reaction-emojis',
+    name: 'Reaction Emojis',
+    gems: 150,
+    description: 'Extra emoji reactions',
+    image: require('../../assets/icons/diamond.png'),
+    category: 'cosmetics',
+  },
+];
+
+const specialItems: ShopItem[] = [
+  {
+    id: 'mystery-box',
+    name: 'Mystery Box',
+    gems: 350,
+    price: '0.99',
+    description: 'Random cosmetics or boosts',
+    image: require('../../assets/images/pic.png'),
+    category: 'special',
+    badge: 'RANDOM',
+  },
+  {
+    id: 'golden-crate',
+    name: 'Golden Crate',
+    gems: 750,
+    price: '4.99',
+    description: 'High-value bundle',
+    image: require('../../assets/icons/Tpcoin.png'),
+    category: 'special',
+    badge: 'PREMIUM',
+  },
+  {
+    id: 'streak-pack',
+    name: 'Streak Pack',
+    price: '2.99',
+    description: 'Streak Saver + Bonus Question',
+    image: require('../../assets/icons/fire.png'),
+    category: 'special',
+    discount: '-20%',
+  },
+  {
+    id: 'trivia-pro',
+    name: 'Trivia Pro Pack',
+    price: '9.99',
+    features: ['Avatar + Bonus Question', 'Only 3 Trivia Options', 'Premium Status'],
+    image: require('../../assets/images/pic.png'),
+    category: 'special',
+    badge: 'BEST VALUE',
+  },
+  {
+    id: 'username-change',
+    name: 'Username Change',
+    gems: 100,
+    price: '0.99',
+    description: 'Update your name',
+    image: require('../../assets/icons/spin.png'),
+    category: 'special',
+  },
+  {
+    id: 'referral-boost',
+    name: 'Referral Boost',
+    gems: 200,
+    price: '0.99',
+    description: 'Boost referrals for 7 days',
+    image: require('../../assets/icons/spin1.png'),
+    category: 'special',
+  },
+  {
+    id: 'custom-status',
+    name: 'Custom Status',
+    gems: 300,
+    description: 'Show a custom status on your profile',
+    image: require('../../assets/icons/spin.png'),
+    category: 'special',
+  },
+];
+
+const packItems: ShopItem[] = [
+  {
+    id: 'premium',
+    name: 'PREMIUM',
+    price: '8.99',
+    features: ['No Ads', 'Unlimited Lives', '+'],
+    coins: 50000,
+    gems: 2000,
+    image: require('../../assets/icons/chest.png'),
+    category: 'packs',
+    badge: 'BEST DEAL',
+  },
+  {
+    id: 'two-in-one',
+    name: '2 in 1',
+    price: '3.99',
+    coins: 5000,
+    gems: 800,
+    image: require('../../assets/icons/Tpcoin.png'),
+    category: 'packs',
+    badge: '2 in 1',
+  },
+  {
+    id: 'coins-pack',
+    name: 'Gems Pack',
+    price: '0.99',
+    coins: 2000,
+    image: require('../../assets/icons/Tpcoin.png'),
+    category: 'packs',
+    discount: '-50%',
+  },
+];
+
+export const shopItemsData: ShopItemsData = {
+  packs: packItems,
+  boosts: boostItems,
+  cosmetics: cosmeticItems,
+  special: specialItems,
+};
