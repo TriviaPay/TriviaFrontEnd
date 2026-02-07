@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  android-build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ENV: production
+    volumes:
+      - ./build-artifacts:/app/android/app/build/outputs/apk/release
+    environment:
+      - NODE_ENV=production

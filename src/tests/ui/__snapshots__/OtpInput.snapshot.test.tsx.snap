@@ -1,0 +1,527 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`OtpInput snapshots default variant 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "paddingVertical": 20,
+      },
+      undefined,
+    ]
+  }
+>
+  <Text
+    style={
+      [
+        {
+          "color": "white",
+          "fontSize": 18,
+          "fontWeight": "bold",
+          "marginBottom": 8,
+          "textAlign": "center",
+        },
+        false,
+      ]
+    }
+  >
+    Enter Verification Code
+  </Text>
+  <Text
+    style={
+      [
+        {
+          "color": "rgba(255,255,255,0.8)",
+          "fontSize": 14,
+          "marginBottom": 24,
+          "textAlign": "center",
+        },
+        false,
+      ]
+    }
+  >
+    We sent a code to 
+    a@b.com
+  </Text>
+  <View
+    style={
+      {
+        "alignSelf": "center",
+        "flexDirection": "row",
+        "justifyContent": "space-between",
+        "marginBottom": 16,
+        "maxWidth": 300,
+        "width": "100%",
+      }
+    }
+  >
+    <TextInput
+      autoFocus={true}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          false,
+          {
+            "backgroundColor": "rgba(255,107,53,0.1)",
+            "borderColor": "#FF6B35",
+          },
+          undefined,
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          false,
+          false,
+          undefined,
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          false,
+          false,
+          undefined,
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          false,
+          false,
+          undefined,
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          false,
+          false,
+          undefined,
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          false,
+          false,
+          undefined,
+        ]
+      }
+      value=""
+    />
+  </View>
+</View>
+`;
+
+exports[`OtpInput snapshots profile variant with error 1`] = `
+<View
+  style={
+    [
+      {
+        "alignItems": "center",
+        "paddingVertical": 20,
+      },
+      undefined,
+    ]
+  }
+>
+  <Text
+    style={
+      [
+        {
+          "color": "white",
+          "fontSize": 18,
+          "fontWeight": "bold",
+          "marginBottom": 8,
+          "textAlign": "center",
+        },
+        {
+          "color": "#1f2937",
+        },
+      ]
+    }
+  >
+    Enter Verification Code
+  </Text>
+  <View
+    style={
+      {
+        "alignSelf": "center",
+        "flexDirection": "row",
+        "justifyContent": "space-between",
+        "marginBottom": 16,
+        "maxWidth": 300,
+        "width": "100%",
+      }
+    }
+  >
+    <TextInput
+      autoFocus={true}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          {
+            "backgroundColor": "#f9fafb",
+            "borderColor": "#e5e7eb",
+            "color": "#1f2937",
+          },
+          {
+            "backgroundColor": "#ede9fe",
+            "borderColor": "#7B68EE",
+          },
+          {
+            "backgroundColor": "rgba(239,68,68,0.1)",
+            "borderColor": "#ef4444",
+          },
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          {
+            "backgroundColor": "#f9fafb",
+            "borderColor": "#e5e7eb",
+            "color": "#1f2937",
+          },
+          false,
+          {
+            "backgroundColor": "rgba(239,68,68,0.1)",
+            "borderColor": "#ef4444",
+          },
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          {
+            "backgroundColor": "#f9fafb",
+            "borderColor": "#e5e7eb",
+            "color": "#1f2937",
+          },
+          false,
+          {
+            "backgroundColor": "rgba(239,68,68,0.1)",
+            "borderColor": "#ef4444",
+          },
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          {
+            "backgroundColor": "#f9fafb",
+            "borderColor": "#e5e7eb",
+            "color": "#1f2937",
+          },
+          false,
+          {
+            "backgroundColor": "rgba(239,68,68,0.1)",
+            "borderColor": "#ef4444",
+          },
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          {
+            "backgroundColor": "#f9fafb",
+            "borderColor": "#e5e7eb",
+            "color": "#1f2937",
+          },
+          false,
+          {
+            "backgroundColor": "rgba(239,68,68,0.1)",
+            "borderColor": "#ef4444",
+          },
+        ]
+      }
+      value=""
+    />
+    <TextInput
+      autoFocus={false}
+      editable={true}
+      keyboardType="numeric"
+      maxLength={1}
+      onChangeText={[Function]}
+      onFocus={[Function]}
+      onKeyPress={[Function]}
+      selectTextOnFocus={true}
+      style={
+        [
+          {
+            "backgroundColor": "rgba(255,255,255,0.1)",
+            "borderColor": "rgba(255,255,255,0.3)",
+            "borderRadius": 8,
+            "borderWidth": 2,
+            "color": "white",
+            "fontSize": 18,
+            "fontWeight": "bold",
+            "height": 45,
+            "textAlign": "center",
+            "width": 45,
+          },
+          {
+            "backgroundColor": "#f9fafb",
+            "borderColor": "#e5e7eb",
+            "color": "#1f2937",
+          },
+          false,
+          {
+            "backgroundColor": "rgba(239,68,68,0.1)",
+            "borderColor": "#ef4444",
+          },
+        ]
+      }
+      value=""
+    />
+  </View>
+  <Text
+    style={
+      {
+        "color": "#ef4444",
+        "fontSize": 14,
+        "marginBottom": 16,
+        "textAlign": "center",
+      }
+    }
+  >
+    Invalid code
+  </Text>
+</View>
+`;

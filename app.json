@@ -1,0 +1,14 @@
+{
+  "name": "TriviaCoin",
+  "displayName": "TriviaCoin",
+  "version": "1.0.0",
+  "platforms": [
+    "ios",
+    "android"
+  ],
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-3940256099942544~3347511713",
+    "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
+  }
+}
+

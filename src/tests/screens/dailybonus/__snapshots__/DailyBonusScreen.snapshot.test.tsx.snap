@@ -1,0 +1,60 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`DailyBonusScreen Snapshot renders correctly 1`] = `
+[
+  <Text
+    style={
+      [
+        {
+          "fontSize": 30,
+          "fontWeight": "700",
+          "lineHeight": 37.5,
+        },
+        {
+          "color": "#1e293b",
+          "textAlign": "left",
+        },
+        {
+          "margin": 16,
+        },
+      ]
+    }
+  >
+    🎁 Daily Bonus
+  </Text>,
+  <RCTScrollView
+    data={[]}
+    getItem={[Function]}
+    getItemCount={[Function]}
+    keyExtractor={[Function]}
+    onContentSizeChange={[Function]}
+    onLayout={[Function]}
+    onMomentumScrollBegin={[Function]}
+    onMomentumScrollEnd={[Function]}
+    onScroll={[Function]}
+    onScrollBeginDrag={[Function]}
+    onScrollEndDrag={[Function]}
+    removeClippedSubviews={false}
+    renderItem={[Function]}
+    scrollEventThrottle={0.0001}
+    stickyHeaderIndices={[]}
+    viewabilityConfigCallbackPairs={[]}
+  >
+    <View />
+  </RCTScrollView>,
+]
+`;
+
+exports[`DailyBonusScreen renders consistently 1`] = `
+<RNCSafeAreaProvider
+  onInsetsChange={[Function]}
+  style={
+    [
+      {
+        "flex": 1,
+      },
+      undefined,
+    ]
+  }
+/>
+`;
