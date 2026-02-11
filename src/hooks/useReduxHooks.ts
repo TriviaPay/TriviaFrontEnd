@@ -39,7 +39,6 @@ import {
   selectClaimAction,
   selectDoubleUpAction,
   resetActionSelection,
-  checkPopupOnAppOpen,
   handleClosePopup,
   updateRewards,
 } from '../store/dailyRewardsSlice';
@@ -314,20 +313,9 @@ export const useDailyRewards = () => {
     dispatch(resetActionSelection());
   };
 
-  const checkPopupOnAppOpenAction = () => {
-    dispatch(checkPopupOnAppOpen());
-  };
+
 
   const handleClosePopupAction = async () => {
-    // Store popup shown date in Keychain
-    const today = new Date().toDateString();
-    try {
-      await Keychain.setGenericPassword('daily_rewards_popup_shown_today', today, {
-        service: 'daily_rewards_popup_shown_today',
-      });
-    } catch (error) {
-      logger.error('Error storing popup shown date:', 'HOOK', error);
-    }
     dispatch(handleClosePopup());
   };
 
@@ -355,7 +343,7 @@ export const useDailyRewards = () => {
     selectClaimAction: selectClaim,
     selectDoubleUpAction: selectDoubleUp,
     resetActionSelection: resetSelection,
-    checkPopupOnAppOpen: checkPopupOnAppOpenAction,
+
     handleClosePopup: handleClosePopupAction,
     updateRewards: updateRewardsAction,
   };

@@ -121,7 +121,7 @@ const CountryPicker: React.FC<CountryPickerProps> = React.memo(
             {loading ? (
               <View style={styles.loadingContainer}>
                 <LottieView
-                  source={require('../../../assets/signup/DogParachute.json')}
+                  source={require('../../../assets/animations/LoadingBar.json')}
                   autoPlay
                   loop
                   style={{ width: 60, height: 60 }}

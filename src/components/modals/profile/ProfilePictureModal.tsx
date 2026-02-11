@@ -8,6 +8,7 @@ import { Modal, Pressable, Text, TouchableOpacity, Platform, Alert } from 'react
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { PermissionsAndroid } from 'react-native';
+import { logger } from '../../../lib/utils/logger';
 
 interface ProfilePictureModalProps {
   visible: boolean;

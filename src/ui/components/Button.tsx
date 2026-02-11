@@ -61,7 +61,7 @@ export const Button: React.FC<ButtonProps> = ({
     >
       {loading ? (
         <LottieView
-          source={require('../../../assets/signup/DogParachute.json')}
+          source={require('../../../assets/animations/LoadingBar.json')}
           autoPlay
           loop
           style={{ width: 30, height: 30 }}

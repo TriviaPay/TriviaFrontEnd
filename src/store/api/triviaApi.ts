@@ -250,7 +250,13 @@ export interface ModeStatus {
   subscription_details: any;
   mode_name: string;
   price: number;
+  questions_remaining: number;
+  task_completed: boolean;
+  message: string;
+  in_reset_window: boolean;
+  reset_window_minutes_left: number;
 }
+
 
 export interface BronzeSilverModeSubmitResponse {
   status: string;

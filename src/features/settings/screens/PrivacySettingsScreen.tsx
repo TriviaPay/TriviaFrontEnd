@@ -119,7 +119,7 @@ const PrivacySettingsScreen: React.FC = () => {
     return (
       <View style={styles.loadingContainer}>
         <LottieView
-          source={require('../../../../assets/signup/DogParachute.json')}
+          source={require('../../../../assets/animations/LoadingBar.json')}
           autoPlay
           loop
           style={{ width: 100, height: 100 }}
@@ -239,7 +239,7 @@ const PrivacySettingsScreen: React.FC = () => {
             {privacyLoading ? (
               <View style={styles.loadingContainer}>
                 <LottieView
-                  source={require('../../../../assets/signup/DogParachute.json')}
+                  source={require('../../../../assets/animations/LoadingBar.json')}
                   autoPlay
                   loop
                   style={{ width: 40, height: 40 }}
@@ -276,7 +276,7 @@ const PrivacySettingsScreen: React.FC = () => {
           >
             {saving ? (
               <LottieView
-                source={require('../../../../assets/signup/DogParachute.json')}
+                source={require('../../../../assets/animations/LoadingBar.json')}
                 autoPlay
                 loop
                 style={{ width: 40, height: 40 }}

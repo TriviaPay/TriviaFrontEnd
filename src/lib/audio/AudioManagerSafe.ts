@@ -150,25 +150,22 @@ class AudioManagerSafe {
 
   getResourceName(soundName: string): string {
     const resourceMap: { [key: string]: string } = {
-      click: "button", // Remapped to match Free tab sound
-      success: "success",
-      error: "error",
       correct: "correct_answer",
       wrong: "wrong_answer",
       win: "win",
       countdown: "countdown",
       notification: "notification",
-      message: "message",
+      message: "button",
       background_music: "background_music",
-      trivia: "trivia",
-      movingcards: "movingcards",
+      trivia: "button",
+      movingcards: "button",
       button: "button",
       buttonMenu: "buttonMenu",
-      "trivia bomb": "trivia bomb",
-      "trivia auto": "trivia auto",
-      "change question": "change question",
-      hint: "hint",
-      "Live winners screen": "Live winners screen",
+      // "trivia bomb": "trivia bomb", // Missing
+      // "trivia auto": "trivia auto", // Missing
+      // "change question": "change question", // Missing
+      "hint": "button", // Missing, fallback to button
+      "Live winners screen": "button", // Missing, fallback to button
       "Shop Item purchase": "Shop Item purchase",
     }
     return resourceMap[soundName] || soundName

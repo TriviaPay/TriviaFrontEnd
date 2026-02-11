@@ -85,7 +85,7 @@ const PerformanceImage: React.FC<PerformanceImageProps> = memo(
             }}
           >
             <LottieView
-              source={require('../../../assets/signup/DogParachute.json')}
+              source={require('../../../assets/animations/LoadingBar.json')}
               autoPlay
               loop
               style={{ width: 30, height: 30 }}

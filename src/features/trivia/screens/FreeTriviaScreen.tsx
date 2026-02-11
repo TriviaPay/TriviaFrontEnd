@@ -585,7 +585,7 @@ const FreeTriviaScreen: React.FC = () => {
               <View style={styles.headerContainer}>
                 <View style={styles.gemContainer}>
                   <ImageBackground
-                    source={require('../../../../assets/gemBg.png')}
+                    source={require('../../../../assets/common/gemBg.png')}
                     style={styles.gemBackground}
                     resizeMode="contain"
                   >
@@ -620,7 +620,7 @@ const FreeTriviaScreen: React.FC = () => {
                   }}
                 >
                   <LottieView
-                    source={require('../../../../assets/signup/DogParachute.json')}
+                    source={require('../../../../assets/animations/LoadingBar.json')}
                     autoPlay
                     loop
                     style={{ width: scaleSize(120), height: scaleSize(120) }}
@@ -832,6 +832,7 @@ const FreeTriviaScreen: React.FC = () => {
         </SafeScreenWrapper>
 
         {/* Global Overlays */}
+
         {showCorrectAnimation && (
           <View
             pointerEvents="box-none"
@@ -911,8 +912,7 @@ const FreeTriviaScreen: React.FC = () => {
           correctAnswersCount={modalStatus?.progress?.correct_answers}
         />
       </View>
-    </ScreenErrorBoundary>
-  );
+    </ScreenErrorBoundary >);
 };
 
 const styles = StyleSheet.create({

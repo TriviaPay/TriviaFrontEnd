@@ -113,7 +113,7 @@ export const StableImage: React.FC<StableImageProps> = ({
         <View style={styles.loaderContainer}>
           {placeholder || (
             <LottieView
-              source={require('../../assets/signup/DogParachute.json')}
+              source={require('../../assets/animations/LoadingBar.json')}
               autoPlay
               loop
               style={{ width: 30, height: 30 }}

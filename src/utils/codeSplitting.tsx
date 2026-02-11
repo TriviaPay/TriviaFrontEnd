@@ -14,7 +14,7 @@ import { logger } from '../lib/utils/logger';
 const LoadingFallback: React.FC = () => (
   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
     <LottieView
-      source={require('../../assets/signup/DogParachute.json')}
+      source={require('../../assets/animations/LoadingBar.json')}
       autoPlay
       loop
       style={{ width: 100, height: 100 }}

@@ -160,7 +160,7 @@ const ShopContent: React.FC<ShopContentProps> = ({ activeMainTab, activeShopTab 
     return (
       <View style={[styles.container, styles.centerContent, { backgroundColor: '#FFFFFF' }]}>
         <LottieView
-          source={require('../../../../assets/signup/DogParachute.json')}
+          source={require('../../../../assets/animations/LoadingBar.json')}
           autoPlay
           loop
           style={{ width: scaleSize(150), height: scaleSize(150) }}

@@ -172,7 +172,7 @@ const ProfilePicture: React.FC<ProfilePictureProps> = ({
             }}
           >
             <LottieView
-              source={require('../../../assets/signup/DogParachute.json')}
+              source={require('../../../assets/animations/LoadingBar.json')}
               autoPlay
               loop
               style={{ width: PROFILE_SIZE * 0.8, height: PROFILE_SIZE * 0.8 }}

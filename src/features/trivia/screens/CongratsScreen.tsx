@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Platform, Image, Animated, TouchableOpacity } from 'react-native';
+import { View, Text, Platform, Image, Animated, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSelector } from 'react-redux';
 import SoundTouchableOpacity from '../../../core/components/SoundTouchableOpacity';
 import { useTheme } from '../../../hooks/useReduxHooks';
@@ -409,7 +409,7 @@ const CongratsScreen: React.FC<CongratsScreenProps> = ({
           bottom: 0,
           width: '100%',
           height: '100%',
-          backgroundColor: 'transparent',
+          backgroundColor: 'rgba(0, 0, 0, 0.55)',
           zIndex: 1, // Same as old code - backdrop at z-index 1
           elevation: 1, // Android elevation
         }}
@@ -494,7 +494,7 @@ const CongratsScreen: React.FC<CongratsScreenProps> = ({
             activeOpacity={1}
           >
             <Image
-              source={require('../../../../assets/closeIcon.png')}
+              source={require('../../../../assets/common/closeIcon.png')}
               style={{
                 width: scaleSize(34),
                 height: scaleSize(34),

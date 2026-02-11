@@ -11,7 +11,7 @@ interface GlobalLoaderProps {
 
 const GlobalLoader: React.FC<GlobalLoaderProps> = ({ transparent = false, forceShow = false }) => {
   const { isVisible, startTime, minDisplayTime } = useSelector(
-    (state: RootState) => state.app.globalLoader
+    (state: RootState) => state.app?.globalLoader || { isVisible: false, startTime: null, minDisplayTime: 300 }
   );
 
   const [shouldShowState, setShouldShowState] = useState(false);
@@ -54,7 +54,7 @@ const GlobalLoader: React.FC<GlobalLoaderProps> = ({ transparent = false, forceS
     <View style={[styles.overlay, transparent && { backgroundColor: 'transparent' }]}>
       <View style={styles.lottieContainer}>
         <LottieView
-          source={require('../../assets/signup/DogParachute.json')}
+          source={require('../../assets/animations/LoadingBar.json')}
           autoPlay
           loop
           style={styles.lottie}

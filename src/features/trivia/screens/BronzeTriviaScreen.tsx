@@ -19,6 +19,7 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  StyleSheet,
 } from 'react-native';
 import { useNavigation, useIsFocused, useRoute, RouteProp } from '@react-navigation/native';
 import { useDispatch, useSelector, shallowEqual } from 'react-redux';
@@ -3252,7 +3253,7 @@ const BronzeTriviaScreen: React.FC = () => {
             <GradientText text="Trivia Challenge" />
             <View style={{ marginTop: scaleSize(10) }}>
               <LottieView
-                source={require('../../../../assets/signup/DogParachute.json')}
+                source={require('../../../../assets/animations/LoadingBar.json')}
                 autoPlay
                 loop
                 style={{ width: scaleSize(100), height: scaleSize(100) }}
@@ -3473,7 +3474,7 @@ const BronzeTriviaScreen: React.FC = () => {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: scaleSize(6) }}>
                   {/* Gem Background Image with Value - Standardized to match Header component */}
                   <ImageBackground
-                    source={require('../../../../assets/gemBg.png')}
+                    source={require('../../../../assets/common/gemBg.png')}
                     style={{
                       width: scaleSize(105), // Standardized to match Header component
                       height: scaleSize(45), // Standardized to match Header component
@@ -3495,7 +3496,7 @@ const BronzeTriviaScreen: React.FC = () => {
                   </ImageBackground>
                   {/* Coin Background Image with Value - Standardized to match Header component */}
                   <ImageBackground
-                    source={require('../../../../assets/coinBg.png')}
+                    source={require('../../../../assets/common/coinBg.png')}
                     style={{
                       width: scaleSize(105), // Standardized to match Header component
                       height: scaleSize(45), // Standardized to match Header component
@@ -3606,7 +3607,7 @@ const BronzeTriviaScreen: React.FC = () => {
                       >
                         {/* Tier-specific Badge for Bronze level */}
                         <Image
-                          source={require('../../../../assets/bronze.png')}
+                          source={require('../../../../assets/common/bronze.png')}
                           style={{
                             position: 'absolute',
                             width: scaleSize(48),
@@ -4000,109 +4001,56 @@ const BronzeTriviaScreen: React.FC = () => {
                 );
               })()}
 
-              <Tooltip
-                isVisible={showInfoTooltip}
-                onClose={handleInfoPress}
-                anchorPosition={tooltipAnchor}
-              />
-
-              {/* Congrats Modal Popup */}
-              <CongratsScreen
-                visible={engineShowCongratsScreen}
-                onClose={() => engineActions.setShowCongratsScreen(false)}
-                selectedAnswer={engineSelectedAnswer || ''}
-                correctAnswer={
-                  engineApiCorrectAnswer ||
-                  questionForDisplay?.correctAnswer ||
-                  question?.correctAnswer ||
-                  ''
-                }
-                question={(questionForDisplay || question) as Question}
-                alreadyAnswered={
-                  engineAlreadyAnswered || Boolean(error && error.includes('already answered'))
-                }
-                onExtraChance={undefined}
-                extraChanceCost={0}
-                userGems={realGems}
-              />
-
-              <Modal
-                visible={showChangeQuestionSuccessModal}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setShowChangeQuestionSuccessModal(false)}
-              >
-                <View
-                  style={{
-                    flex: 1,
-                    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    padding: scaleSize(20),
-                  }}
-                >
-                  <View
-                    style={{
-                      backgroundColor: 'white',
-                      borderRadius: scaleSize(20),
-                      padding: scaleSize(24),
-                      width: '100%',
-                      maxWidth: scaleSize(340),
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: scaleSize(22),
-                        fontWeight: 'bold',
-                        color: '#1f2937',
-                        marginBottom: scaleSize(12),
-                      }}
-                    >
-                      Question Changed!
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: scaleSize(16),
-                        color: '#4b5563',
-                        textAlign: 'center',
-                        marginBottom: scaleSize(24),
-                        lineHeight: scaleSize(24),
-                      }}
-                    >
-                      A new question has been unlocked for you.
-                    </Text>
-                    <SoundTouchableOpacity
-                      onPress={() => setShowChangeQuestionSuccessModal(false)}
-                      style={{
-                        backgroundColor: '#8b5cf6',
-                        borderRadius: scaleSize(12),
-                        paddingVertical: scaleSize(12),
-                        paddingHorizontal: scaleSize(32),
-                        minWidth: scaleSize(120),
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: 'white',
-                          fontSize: scaleSize(16),
-                          fontWeight: '600',
-                          textAlign: 'center',
-                        }}
-                      >
-                        Continue
-                      </Text>
-                    </SoundTouchableOpacity>
-                  </View>
-                </View>
-              </Modal>
             </View>
           </TouchableWithoutFeedback>
         </SafeAreaView>
       </View>
 
+      {/* Congrats Modal Popup - Rendered at root for absolute full screen coverage */}
+      <CongratsScreen
+        visible={engineShowCongratsScreen}
+        onClose={() => engineActions.setShowCongratsScreen(false)}
+        selectedAnswer={engineSelectedAnswer || ''}
+        correctAnswer={
+          engineApiCorrectAnswer ||
+          questionForDisplay?.correctAnswer ||
+          question?.correctAnswer ||
+          ''
+        }
+        question={(questionForDisplay || question) as Question}
+        alreadyAnswered={
+          engineAlreadyAnswered || Boolean(error && error.includes('already answered'))
+        }
+        onExtraChance={undefined}
+        extraChanceCost={0}
+        userGems={realGems}
+      />
+
+      {/* Background opacity overlay when info tooltip is visible */}
+      {showInfoTooltip && (
+        <SoundTouchableOpacity
+          activeOpacity={1}
+          onPress={handleInfoPress}
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(0, 0, 0, 0.55)',
+            zIndex: 999,
+            elevation: 999,
+          }}
+        >
+          <View />
+        </SoundTouchableOpacity>
+      )}
+
+      <Tooltip
+        isVisible={showInfoTooltip}
+        onClose={handleInfoPress}
+        anchorPosition={tooltipAnchor}
+      />
+
       {/* Confetti Animation */}
-      < Confetti isVisible={showConfetti} onAnimationEnd={handleConfettiAnimationEnd} />
+      <Confetti isVisible={showConfetti} onAnimationEnd={handleConfettiAnimationEnd} />
+
     </ScreenErrorBoundary >
   );
 };

@@ -273,13 +273,9 @@ const styles = StyleSheet.create({
     padding: scaleSize(16),
   },
   backdrop: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     elevation: 1,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
     zIndex: 1,
   },
   backdropContainer: {

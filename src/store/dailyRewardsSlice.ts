@@ -3,6 +3,7 @@ import * as Keychain from 'react-native-keychain';
 import { authService } from '../services/authService';
 import { apiClient } from '../services/api/apiclient';
 import { logger } from '../lib/utils/logger';
+import { storage } from '../core/services/Storage';
 
 interface Reward {
   day: number;
@@ -36,14 +37,12 @@ interface DailyRewardsState {
   isLoadingPopup: boolean;
   lastStatusFetch: number | null; // Timestamp of last status fetch
 }
-
 const API_BASE_URL = 'https://trivia-back-end.vercel.app';
-// const API_BASE_URL = 'http://192.168.0.116:8000';
-const API_PARAMS = '?check_expiration=true&require_email=true';
-
-// Keychain keys for popup tracking
 const LAST_CLAIM_DATE_KEY = 'daily_rewards_last_claim_date';
-const POPUP_SHOWN_KEY = 'daily_rewards_popup_shown_today';
+
+// Cache duration for daily status fetch (60 seconds)
+const DAILY_STATUS_CACHE_DURATION = 60000;
+
 
 // Helper functions for date handling
 const getTodayString = (): string => {
@@ -83,11 +82,8 @@ const getHeaders = async (): Promise<Record<string, string>> => {
     };
   }
 };
-
-// Cache duration for daily status fetch (60 seconds)
-const DAILY_STATUS_CACHE_DURATION = 60000;
-
 // Async thunks for API calls
+
 export const fetchWeeklyStatus = createAsyncThunk(
   'dailyRewards/fetchWeeklyStatus',
   async (forceRefresh: boolean = false, { rejectWithValue, getState }) => {
@@ -101,21 +97,23 @@ export const fetchWeeklyStatus = createAsyncThunk(
         dailyRewardsState?.lastStatusFetch &&
         Date.now() - dailyRewardsState.lastStatusFetch < DAILY_STATUS_CACHE_DURATION
       ) {
-        // Return cached data from state
+        // Return cached data from state in exactly the same format as the API
+        const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        const dayStatus: Record<string, boolean> = {};
+        dailyRewardsState.rewards.forEach(r => {
+          dayStatus[dayNames[r.day - 1]] = r.claimed;
+        });
+
         return {
           current_day: dailyRewardsState.currentDay,
-          days_claimed: dailyRewardsState.rewards.filter(r => r.claimed).length,
-          day_status: dailyRewardsState.rewards.map(r => ({
-            day: r.day,
-            claimed: r.claimed,
-            enabled: r.enabled,
-          })),
+          days_claimed: dailyRewardsState.rewards.filter(r => r.claimed).map(r => r.day),
+          day_status: dayStatus,
           fromCache: true,
         };
       }
 
       // Use the authenticated API client
-      const data = await apiClient.get('/trivia/daily-login');
+      const data = await apiClient.get('/daily-login');
 
       logger.log('✅ Daily login status received:', 'STORE', JSON.stringify(data, null, 2));
       return { ...data, fromCache: false };
@@ -214,85 +212,8 @@ export const doubleUpReward = createAsyncThunk(
   }
 );
 
-// Thunk to check and initialize popup state on app open
-export const checkPopupOnAppOpen = createAsyncThunk(
-  'dailyRewards/checkPopupOnAppOpen',
-  async (_, { getState, rejectWithValue }) => {
-    try {
-      const state = getState() as { dailyRewards?: DailyRewardsState };
+// Thunk to check and initialize popup state on app open removed - logic moved to fetchWeeklyStatus.fulfilled
 
-      // Safety check: ensure dailyRewards exists and has required properties
-      if (!state.dailyRewards) {
-        return { shouldShow: false, todayReward: null };
-      }
-
-      const { rewards = [], currentDay = 1 } = state.dailyRewards;
-
-      // Ensure rewards is an array
-      const safeRewards = Array.isArray(rewards) ? rewards : [];
-
-      // Get stored data from Keychain
-      const lastClaimCredentials = await Keychain.getGenericPassword({
-        service: LAST_CLAIM_DATE_KEY,
-      });
-      const popupShownCredentials = await Keychain.getGenericPassword({ service: POPUP_SHOWN_KEY });
-
-      const lastClaimDate = lastClaimCredentials ? lastClaimCredentials.password : null;
-      const popupShownToday = popupShownCredentials ? popupShownCredentials.password : null;
-
-      const today = getTodayString();
-      const claimedToday = lastClaimDate === today;
-      const popupAlreadyShown = popupShownToday === today;
-
-      // First time user - show popup if rewards are loaded and not claimed
-      if (!lastClaimDate && safeRewards.length > 0) {
-        const todayReward = safeRewards.find(r => r.day === currentDay && r.enabled && !r.claimed);
-        // For first time users, always show if there's an unclaimed reward
-        const shouldShow = !!todayReward;
-
-        return {
-          shouldShow,
-          todayReward: todayReward ? todayReward.day : null,
-        };
-      }
-
-      // Check if it's a new day and we have rewards loaded
-      if (isNewDay(lastClaimDate) && !claimedToday && safeRewards.length > 0) {
-        const todayReward = safeRewards.find(r => r.day === currentDay && r.enabled && !r.claimed);
-        // New day - always show if there's an unclaimed reward (ignore popupAlreadyShown)
-        const shouldShow = !!todayReward;
-
-        return {
-          shouldShow,
-          todayReward: todayReward ? todayReward.day : null,
-        };
-      }
-
-      // If same day, check if there's still an unclaimed reward
-      // Only check popupAlreadyShown if NOT claimed today
-      if (!isNewDay(lastClaimDate) && safeRewards.length > 0) {
-        const todayReward = safeRewards.find(r => r.day === currentDay && r.enabled && !r.claimed);
-        // Same day - show if unclaimed and not already shown today
-        const shouldShow = todayReward && !claimedToday && !popupAlreadyShown;
-
-        return {
-          shouldShow,
-          todayReward: todayReward ? todayReward.day : null,
-        };
-      }
-
-      // No rewards loaded yet
-      if (safeRewards.length === 0) {
-        return { shouldShow: false, todayReward: null };
-      }
-
-      return { shouldShow: false, todayReward: null };
-    } catch (error: any) {
-      logger.error('Error checking popup state:', 'STORE', error);
-      return rejectWithValue(error.message || 'Unknown error checking popup state');
-    }
-  }
-);
 
 // Helper function to transform new API data to our app format
 const transformDailyLoginToRewards = (apiData: any): Reward[] => {
@@ -402,11 +323,13 @@ const dailyRewardsSlice = createSlice({
       });
       state.currentDay = Math.min(day + 1, 7);
 
-      // Store claim date in Keychain for persistence
+      // Store claim date in MMKV for persistence
       const today = getTodayString();
-      Keychain.setGenericPassword(LAST_CLAIM_DATE_KEY, today, {
-        service: LAST_CLAIM_DATE_KEY,
-      }).catch(err => logger.error('Error storing claim date:', 'STORE', err));
+      try {
+        storage.set(LAST_CLAIM_DATE_KEY, today);
+      } catch (err) {
+        logger.error('Error storing claim date:', 'STORE', err);
+      }
 
       // Keep popup open - user must close manually
     },
@@ -440,8 +363,10 @@ const dailyRewardsSlice = createSlice({
         const todayReward = state.rewards.find(r => r.isToday);
         state.showPopup = todayReward ? !todayReward.claimed && todayReward.enabled : false;
 
-        // Trigger popup check after fetching weekly status
-        // This will be handled by the hook calling checkPopupOnAppOpen
+        // Auto-show popup on app open if rewards are available and not claimed
+        // This is triggered by MainNavigator.tsx once per session
+        state.showPopupOnAppOpen = !!(todayReward && todayReward.enabled && !todayReward.claimed);
+        state.isLoadingPopup = false;
 
         // Update button states
         if (todayReward && todayReward.claimed) {
@@ -470,6 +395,7 @@ const dailyRewardsSlice = createSlice({
           state.error = 'Failed to fetch weekly status';
         }
         state.showPopup = false;
+        state.isLoadingPopup = false;
         // Don't prevent popup check on network error - use local state if available
         // The popup check will handle empty rewards gracefully
       })
@@ -525,11 +451,13 @@ const dailyRewardsSlice = createSlice({
         // state.showPopup = false;
         // state.showPopupOnAppOpen = false;
 
-        // Store claim date in Keychain for persistence
+        // Store claim date in MMKV for persistence
         const today = getTodayString();
-        Keychain.setGenericPassword(LAST_CLAIM_DATE_KEY, today, {
-          service: LAST_CLAIM_DATE_KEY,
-        }).catch(err => logger.error('Error storing claim date:', 'STORE', err));
+        try {
+          storage.set(LAST_CLAIM_DATE_KEY, today);
+        } catch (err) {
+          logger.error('Error storing claim date:', 'STORE', err);
+        }
 
         // Clear cache timestamp to force fresh fetch on next fetchWeeklyStatus call
         state.lastStatusFetch = null;
@@ -578,18 +506,8 @@ const dailyRewardsSlice = createSlice({
         state.actionSelected = null;
       })
 
-      // Handle checkPopupOnAppOpen
-      .addCase(checkPopupOnAppOpen.pending, state => {
-        state.isLoadingPopup = true;
-      })
-      .addCase(checkPopupOnAppOpen.fulfilled, (state, action) => {
-        state.isLoadingPopup = false;
-        state.showPopupOnAppOpen = action.payload.shouldShow ?? false;
-      })
-      .addCase(checkPopupOnAppOpen.rejected, state => {
-        state.isLoadingPopup = false;
-        state.showPopupOnAppOpen = false;
-      });
+    // Handle checkPopupOnAppOpen - Removed logic moved to fetchWeeklyStatus.fulfilled
+
   },
 });
 

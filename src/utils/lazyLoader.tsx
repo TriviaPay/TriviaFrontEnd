@@ -43,7 +43,7 @@ export function withLazyLoading<P extends object>(
   const defaultFallback = (
     <View style={styles.loadingContainer}>
       <LottieView
-        source={require('../../assets/signup/DogParachute.json')}
+        source={require('../../assets/animations/LoadingBar.json')}
         autoPlay
         loop
         style={{ width: 150, height: 150 }}

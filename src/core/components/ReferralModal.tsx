@@ -203,7 +203,7 @@ const ReferralModal = ({ isVisible, onClose, isDarkMode }: ReferralModalProps) =
                 ]}
               >
                 <Image
-                  source={require('../../../assets/closeIcon.png')}
+                  source={require('../../../assets/common/closeIcon.png')}
                   style={styles.closeIcon}
                   resizeMode="contain"
                 />
@@ -216,7 +216,7 @@ const ReferralModal = ({ isVisible, onClose, isDarkMode }: ReferralModalProps) =
             {loading ? (
               <View style={styles.loadingContainer}>
                 <LottieView
-                  source={require('../../../assets/signup/DogParachute.json')}
+                  source={require('../../../assets/animations/LoadingBar.json')}
                   autoPlay
                   loop
                   style={{ width: scaleSize(100), height: scaleSize(100) }}

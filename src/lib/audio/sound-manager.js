@@ -383,18 +383,18 @@ class SoundManager {
       buttonMenu: require('../../../assets/sounds/buttonMenu.mp3'),
       success: require('../../../assets/sounds/button.mp3'), // Fallback to button
       error: require('../../../assets/sounds/button.mp3'), // Fallback to button
-      correct: require('../../../assets/sounds/button.mp3'), // Fallback to button
-      wrong: require('../../../assets/sounds/button.mp3'), // Fallback to button
+      correct: require('../../../assets/sounds/correct_answer.mp3'),
+      wrong: require('../../../assets/sounds/wrong_answer.mp3'),
       countdown: require('../../../assets/sounds/button.mp3'), // Fallback to button
-      win: require('../../../assets/sounds/button.mp3'), // Fallback to button
+      win: require('../../../assets/sounds/win.mp3'),
       notification: require('../../../assets/sounds/notification-291228.mp3'),
       message: require('../../../assets/sounds/button.mp3'), // Fallback to button
       'daily bonus': require('../../../assets/sounds/daily bonus gems collection.mp3'),
-      hint: require('../../../assets/sounds/hint.mp3'),
-      'change question': require('../../../assets/sounds/change question.mp3'),
-      'trivia auto': require('../../../assets/sounds/trivia auto.mp3'),
-      'trivia bomb': require('../../../assets/sounds/trivia bomb.mp3'),
-      'Live winners screen': require('../../../assets/sounds/Live winners screen.mp3'),
+      // hint: require('../../../assets/sounds/hint.mp3'), // Missing
+      // 'change question': require('../../../assets/sounds/change question.mp3'), // Missing
+      // 'trivia auto': require('../../../assets/sounds/trivia auto.mp3'), // Missing
+      // 'trivia bomb': require('../../../assets/sounds/trivia bomb.mp3'), // Missing
+      // 'Live winners screen': require('../../../assets/sounds/Live winners screen.mp3'), // Missing
       'Shop Item purchase': require('../../../assets/sounds/Shop Item purchase.mp3'),
       // background_music may not exist, handle gracefully
       background_music: require('../../../assets/sounds/button.mp3'), // Fallback to button if background_music doesn't exist
@@ -929,7 +929,7 @@ class SoundManager {
     try {
       const sound = this.sounds[soundName];
       if (sound && sound.stopAsync) {
-        sound.stopAsync().catch(() => {});
+        sound.stopAsync().catch(() => { });
       }
     } catch (error) {
       logger.warn(`Error stopping sound ${soundName}:`, 'AUDIO', error);

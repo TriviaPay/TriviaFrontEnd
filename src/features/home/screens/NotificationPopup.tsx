@@ -212,7 +212,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = memo(
                     }}
                   >
                     <Image
-                      source={require('../../../../assets/closeIcon.png')}
+                      source={require('../../../../assets/common/closeIcon.png')}
                       style={{ width: 26, height: 26 }}
                       resizeMode="contain"
                     />

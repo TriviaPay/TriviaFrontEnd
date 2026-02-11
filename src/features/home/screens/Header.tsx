@@ -496,7 +496,7 @@ const Header: React.FC = () => {
           >
             {/* Gem Background Image with Value */}
             <ImageBackground
-              source={require('../../../../assets/gemBg.png')}
+              source={require('../../../../assets/common/gemBg.png')}
               style={{
                 width: topIconWidth,
                 height: topIconHeight,
@@ -519,7 +519,7 @@ const Header: React.FC = () => {
 
             {/* Coin Background Image with Value */}
             <ImageBackground
-              source={require('../../../../assets/coinBg.png')}
+              source={require('../../../../assets/common/coinBg.png')}
               style={{
                 width: topIconWidth,
                 height: topIconHeight,
@@ -774,7 +774,7 @@ const Header: React.FC = () => {
                   >
                     <View style={{ position: 'relative' }}>
                       <Image
-                        source={require('../../../../assets/home/notificationIcon.png')}
+                        source={require('../../../../assets/navigation/notificationIcon.png')}
                         style={{
                           width: scaleSize(36),
                           height: scaleSize(36),

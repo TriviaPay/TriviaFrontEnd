@@ -60,14 +60,6 @@ const boostItems: ShopItem[] = [
     category: 'boosts',
   },
   {
-    id: 'fifty-fifty',
-    name: '50-50',
-    gems: 50,
-    description: 'Remove two wrong answers',
-    image: require('../../assets/icons/spin1.png'),
-    category: 'boosts',
-  },
-  {
     id: 'change-question',
     name: 'Change Question',
     gems: 10,
@@ -86,15 +78,6 @@ const boostItems: ShopItem[] = [
 ];
 
 const cosmeticItems: ShopItem[] = [
-  {
-    id: 'avatar-pack',
-    name: 'Avatar Pack',
-    gems: 500,
-    price: '0.99',
-    description: 'Unlocks custom avatars',
-    image: require('../../assets/images/pic.png'),
-    category: 'cosmetics',
-  },
   {
     id: 'button-skins',
     name: 'Answer Button Skins',
@@ -146,7 +129,7 @@ const specialItems: ShopItem[] = [
     gems: 350,
     price: '0.99',
     description: 'Random cosmetics or boosts',
-    image: require('../../assets/images/pic.png'),
+    image: require('../../assets/icons/box.png'),
     category: 'special',
     badge: 'RANDOM',
   },
@@ -169,41 +152,6 @@ const specialItems: ShopItem[] = [
     category: 'special',
     discount: '-20%',
   },
-  {
-    id: 'trivia-pro',
-    name: 'Trivia Pro Pack',
-    price: '9.99',
-    features: ['Avatar + Bonus Question', 'Only 3 Trivia Options', 'Premium Status'],
-    image: require('../../assets/images/pic.png'),
-    category: 'special',
-    badge: 'BEST VALUE',
-  },
-  {
-    id: 'username-change',
-    name: 'Username Change',
-    gems: 100,
-    price: '0.99',
-    description: 'Update your name',
-    image: require('../../assets/icons/spin.png'),
-    category: 'special',
-  },
-  {
-    id: 'referral-boost',
-    name: 'Referral Boost',
-    gems: 200,
-    price: '0.99',
-    description: 'Boost referrals for 7 days',
-    image: require('../../assets/icons/spin1.png'),
-    category: 'special',
-  },
-  {
-    id: 'custom-status',
-    name: 'Custom Status',
-    gems: 300,
-    description: 'Show a custom status on your profile',
-    image: require('../../assets/icons/spin.png'),
-    category: 'special',
-  },
 ];
 
 const packItems: ShopItem[] = [
@@ -214,7 +162,7 @@ const packItems: ShopItem[] = [
     features: ['No Ads', 'Unlimited Lives', '+'],
     coins: 50000,
     gems: 2000,
-    image: require('../../assets/icons/chest.png'),
+    image: require('../../assets/icons/chestbox.png'),
     category: 'packs',
     badge: 'BEST DEAL',
   },

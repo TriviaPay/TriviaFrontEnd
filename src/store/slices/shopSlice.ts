@@ -7,6 +7,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { shopItemsData } from '../../data/shopItems';
 import authService from '../../services/authService';
+import { claimDailyReward, doubleUpReward } from '../dailyRewardsSlice';
 
 export interface UserBalance {
   gems: number;
@@ -283,6 +284,19 @@ const shopSlice = createSlice({
       })
       .addCase(addGems.rejected, (state, action) => {
         state.error = action.payload as string;
+      })
+      // Sync with Daily Rewards
+      .addCase(claimDailyReward.fulfilled, (state, action) => {
+        if (action.payload?.total_gems) {
+          state.userBalance.gems = action.payload.total_gems;
+          state.lastGemsFetch = Date.now();
+        }
+      })
+      .addCase(doubleUpReward.fulfilled, (state, action) => {
+        if (action.payload?.current_gems) {
+          state.userBalance.gems = action.payload.current_gems;
+          state.lastGemsFetch = Date.now();
+        }
       });
   },
 });

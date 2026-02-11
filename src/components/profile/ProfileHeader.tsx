@@ -72,7 +72,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
       >
         <Image
-          source={require('../../../assets/backIcon.png')}
+          source={require('../../../assets/common/backIcon.png')}
           style={{ width: 36, height: 36 }}
           resizeMode="contain"
         />

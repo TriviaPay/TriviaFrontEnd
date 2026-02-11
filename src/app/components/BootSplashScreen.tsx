@@ -1,11 +1,5 @@
-/**
- * BootSplash Screen Component
- * Shows native bootsplash first, then Lottie animation (max 5 seconds), then proceeds to welcome screen
- */
-
 import React, { useRef, useEffect, useState } from 'react';
 import { View, StyleSheet, Image, Dimensions } from 'react-native';
-import LottieView from 'lottie-react-native';
 import RNBootSplash from 'react-native-bootsplash';
 import { logger } from '@core/services/Logger';
 
@@ -17,7 +11,6 @@ const triviaLogo = require('../../../assets/home/logo.png');
 interface BootSplashScreenProps {
   onAnimationComplete?: () => void;
   maxDuration?: number; // Maximum duration before forcing completion (default 4s)
-  minDuration?: number; // Minimum animation time (default 2s)
 }
 
 /**
@@ -28,13 +21,10 @@ interface BootSplashScreenProps {
 const BootSplashScreen: React.FC<BootSplashScreenProps> = ({
   onAnimationComplete,
   maxDuration = 4000,
-  minDuration = 2000,
 }) => {
-  const lottieRef = useRef<LottieView>(null);
   const hasCalledComplete = useRef(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showLottie, setShowLottie] = useState(false);
-  const animationStartTime = useRef<number>(0);
 
   useEffect(() => {
     // Step 1: Keep native bootsplash visible briefly (500ms)
@@ -47,7 +37,6 @@ const BootSplashScreen: React.FC<BootSplashScreenProps> = ({
         // Silently fail if bootsplash is already hidden
       });
       setShowLottie(true);
-      animationStartTime.current = Date.now();
     }, 100); // Show native bootsplash for only 100ms for faster transition
 
     // Maximum duration timeout
@@ -74,38 +63,6 @@ const BootSplashScreen: React.FC<BootSplashScreenProps> = ({
     };
   }, [onAnimationComplete, maxDuration]);
 
-  const handleAnimationFinish = () => {
-    if (!hasCalledComplete.current) {
-      // Enforce minimum animation time
-      const elapsed = Date.now() - animationStartTime.current;
-      const remaining = Math.max(0, minDuration - elapsed);
-
-      if (remaining > 0) {
-        // Delay completion to meet minimum duration
-        setTimeout(() => {
-          if (!hasCalledComplete.current) {
-            hasCalledComplete.current = true;
-            if (timeoutRef.current) {
-              clearTimeout(timeoutRef.current);
-              timeoutRef.current = null;
-            }
-            RNBootSplash.hide({ fade: false }).catch(() => { });
-            onAnimationComplete?.();
-          }
-        }, remaining);
-      } else {
-        // Minimum duration already met
-        hasCalledComplete.current = true;
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-        RNBootSplash.hide({ fade: false }).catch(() => { });
-        onAnimationComplete?.();
-      }
-    }
-  };
-
   // Always render container to prevent native bootsplash from showing again
   // When showLottie is false, just show transparent container (native bootsplash visible behind)
   // When showLottie is true, show Lottie animation
@@ -116,15 +73,6 @@ const BootSplashScreen: React.FC<BootSplashScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Lottie Background Animation */}
-      <LottieView
-        ref={lottieRef}
-        source={require('../../../assets/signup/Background.json')}
-        autoPlay
-        loop={false}
-        style={styles.lottieAnimation}
-        onAnimationFinish={handleAnimationFinish}
-      />
       {/* Logo Overlay */}
       <View style={styles.logoLoaderContainer}>
         <Image source={triviaLogo} style={styles.logoImage} resizeMode="contain" />
@@ -153,20 +101,6 @@ const styles = StyleSheet.create({
     maxWidth: 220,
     width: width * 0.45,
     marginBottom: 20, // Space between logo and loader
-  },
-  loaderSpacing: {
-    marginTop: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerLoader: {
-    width: 60,
-    height: 60,
-  },
-  lottieAnimation: {
-    height: '100%',
-    position: 'absolute',
-    width: '100%',
   },
   transparentContainer: {
     backgroundColor: '#1e90ff',

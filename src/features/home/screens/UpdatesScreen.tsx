@@ -1134,6 +1134,30 @@ const UpdatesScreen: React.FC = () => {
               onWinnerClick={handleWinnerClick}
             /> */}
 
+            {/* Show Loading Animation while screen is rendering/data is fetching */}
+            {(isInitialLoading || isProfileLoading) && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: '#1e90ff',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  zIndex: 10000,
+                }}
+              >
+                <LottieView
+                  source={require('../../../../assets/animations/LoadingBar.json')}
+                  autoPlay
+                  loop
+                  style={{ width: scaleSize(200), height: scaleSize(200) }}
+                />
+              </View>
+            )}
+
             <UserProfileModal
               isVisible={isProfileModalVisible}
               onClose={handleCloseProfileModal}

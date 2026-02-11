@@ -56,6 +56,7 @@ import useIsMounted from '../../../hooks/useIsMounted';
 import { logger } from '../../../lib/utils/logger';
 import { useProfileData } from '../../../hooks/profile/useProfileData';
 import ProfileModals from '../../../components/profile/ProfileModals';
+import GlobalLoader from '../../../components/GlobalLoader';
 import { isLottieFile } from '../../../utils/safeValues';
 
 // No hardcoded data - all data comes from API

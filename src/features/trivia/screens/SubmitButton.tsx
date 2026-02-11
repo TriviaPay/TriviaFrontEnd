@@ -85,7 +85,7 @@ const SubmitButton: React.FC<SubmitButtonProps> = ({
       >
         {isLoading ? (
           <LottieView
-            source={require('../../../../assets/signup/DogParachute.json')}
+            source={require('../../../../assets/animations/LoadingBar.json')}
             autoPlay
             loop
             style={{ width: scaleSize(40), height: scaleSize(40), top: scaleSize(4) }}

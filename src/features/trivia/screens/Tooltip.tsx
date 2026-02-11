@@ -99,7 +99,7 @@ const Tooltip = ({ isVisible, onClose, anchorPosition }: TooltipProps): JSX.Elem
               }}
             >
               <Image
-                source={require('../../../../assets/closeIcon.png')}
+                source={require('../../../../assets/common/closeIcon.png')}
                 style={{
                   width: scaleSize(24),
                   height: scaleSize(24),

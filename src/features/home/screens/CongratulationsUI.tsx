@@ -118,7 +118,7 @@ const CongratulationsUI: React.FC = React.memo(() => {
             }}
           >
             <Image
-              source={require('../../../../assets/congratulations.png')}
+              source={require('../../../../assets/home/congratulations.png')}
               style={{
                 width: cardWidth - scaleSize(100),
                 height: cardHeight - scaleSize(100),
@@ -230,7 +230,7 @@ const CongratulationsUI: React.FC = React.memo(() => {
                 }}
               >
                 <Image
-                  source={require('../../../../assets/play.png')}
+                  source={require('../../../../assets/home/play.png')}
                   style={{
                     width: scaleSize(88),
                     height: scaleSize(38),

@@ -487,7 +487,7 @@ const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onC
       <View
         style={[
           styles.modalContainer,
-          { backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.7)' },
+          { backgroundColor: 'rgba(0, 0, 0, 0.55)' },
         ]}
       >
         <AnimatedGems

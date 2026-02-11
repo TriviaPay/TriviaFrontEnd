@@ -44,10 +44,10 @@ const FreeModeCongratsScreen: React.FC<Props> = ({
   onClose,
   onTapToReview,
 }) => {
-  const { width } = useStandardResponsive();
+  const { width: _unusedWidth } = useStandardResponsive();
   const [currentIndex, setCurrentIndex] = useState(0);
   const closeButtonAnimation = useButtonAnimation();
-  const currentMode = useSelector((state: any) => state.trivia.currentMode);
+  // const currentMode = useSelector((state: any) => state.trivia.currentMode);
 
   const sortedQuestions = useMemo(() => {
     const list = questions ?? [];
@@ -182,12 +182,8 @@ const FreeModeCongratsScreen: React.FC<Props> = ({
       {/* Backdrop - tappable to close */}
       <TouchableOpacity
         style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(44,48,48,0.5)',
+          ...StyleSheet.absoluteFillObject,
+          backgroundColor: 'rgba(0, 0, 0, 0.55)',
           zIndex: 1,
           elevation: 1,
         }}
@@ -251,7 +247,7 @@ const FreeModeCongratsScreen: React.FC<Props> = ({
             activeOpacity={1}
           >
             <Image
-              source={require('../../../../assets/closeIcon.png')}
+              source={require('../../../../assets/common/closeIcon.png')}
               style={{
                 width: scaleSize(34),
                 height: scaleSize(34),

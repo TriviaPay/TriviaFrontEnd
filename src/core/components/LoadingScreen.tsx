@@ -41,7 +41,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LottieView
-        source={require('../../../assets/signup/DogParachute.json')}
+        source={require('../../../assets/animations/LoadingBar.json')}
         autoPlay
         loop
         style={{ width: 150, height: 150 }}

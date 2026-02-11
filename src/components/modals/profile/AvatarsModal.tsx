@@ -190,7 +190,7 @@ const AvatarsModal: React.FC<AvatarsModalProps> = ({
             <>
               {isLoading && (
                 <LottieView
-                  source={require('../../../../assets/signup/DogParachute.json')}
+                  source={require('../../../../assets/animations/LoadingBar.json')}
                   autoPlay
                   loop
                   style={{ position: 'absolute', zIndex: 1, width: 24, height: 24 }}
@@ -338,7 +338,7 @@ const AvatarsModal: React.FC<AvatarsModalProps> = ({
           {loading || refreshing ? (
             <View style={{ paddingVertical: 32, alignItems: 'center' }}>
               <LottieView
-                source={require('../../../../assets/signup/DogParachute.json')}
+                source={require('../../../../assets/animations/LoadingBar.json')}
                 autoPlay
                 loop
                 style={{ width: 100, height: 100 }}

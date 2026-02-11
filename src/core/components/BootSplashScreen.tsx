@@ -1,10 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, StyleSheet, Image, Dimensions } from 'react-native';
-import LottieView from 'lottie-react-native';
 import BootSplash from 'react-native-bootsplash';
 import { logger } from '../../lib/utils/logger';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 // Assets
 const triviaLogo = require('../../../assets/home/logo.png');
@@ -18,7 +17,6 @@ interface BootSplashScreenProps {
  * Shows native bootsplash first, then Lottie animation (max 5 seconds), then proceeds to welcome screen
  */
 const BootSplashScreen: React.FC<BootSplashScreenProps> = ({ onAnimationComplete }) => {
-  const lottieRef = useRef<LottieView>(null);
   const hasCalledComplete = useRef(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showLottie, setShowLottie] = useState(false);

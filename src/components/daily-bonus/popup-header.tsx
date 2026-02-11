@@ -57,7 +57,7 @@ const PopupHeader: React.FC<PopupHeaderProps> = ({ ribbonAnim, isDarkMode, onClo
         disabled={disabled}
         activeOpacity={disabled ? 1 : 0.7}
       >
-        <Image source={require('../../../assets/closeIcon.png')} style={styles.closeIcon} />
+        <Image source={require('../../../assets/common/closeIcon.png')} style={styles.closeIcon} />
       </SoundTouchableOpacity>
     </Animated.View>
   );

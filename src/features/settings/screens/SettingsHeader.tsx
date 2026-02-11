@@ -55,14 +55,14 @@ const SettingsHeader: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.headerBackground}>
-        <SoundTouchableOpacity 
-          onPress={handleGoBack} 
-          style={styles.backButton} 
+        <SoundTouchableOpacity
+          onPress={handleGoBack}
+          style={styles.backButton}
           activeOpacity={0.7}
           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
           <Image
-            source={require('../../../../assets/backIcon.png')}
+            source={require('../../../../assets/common/backIcon.png')}
             style={styles.backIcon}
             resizeMode="contain"
             onError={error => { }}

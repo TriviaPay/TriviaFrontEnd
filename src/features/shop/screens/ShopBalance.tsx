@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Platform, ImageBackground } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Platform, ImageBackground } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useShop } from '../../../hooks/useReduxHooks';
 import { useGetUserGemsQuery } from '../../../store/api/shopApi';
@@ -34,12 +34,6 @@ const ShopBalance: React.FC = () => {
     }
     return (size: number) => size;
   }, [responsive]);
-
-  // Ensure strokeWidth is always a valid number
-  const strokeWidth = React.useMemo(() => {
-    const spacing = getResponsiveSpacing(2);
-    return typeof spacing === 'number' && !isNaN(spacing) && isFinite(spacing) ? spacing : 2;
-  }, [getResponsiveSpacing]);
 
   // Removed API fetching - ShopScreen handles fetching when screen is focused
   // This component only displays the balance, no API calls needed
@@ -89,7 +83,7 @@ const ShopBalance: React.FC = () => {
         {/* Gem Count - Right end - Match HomeScreen Header style */}
         <View style={styles.balanceContent}>
           <ImageBackground
-            source={require('../../../../assets/gemBg.png')}
+            source={require('../../../../assets/common/gemBg.png')}
             style={{
               width: scaleSize(105),
               height: scaleSize(40),

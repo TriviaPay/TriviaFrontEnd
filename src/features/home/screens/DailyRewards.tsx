@@ -543,7 +543,7 @@ const DailyRewards: React.FC<DailyRewardsProps> = ({ isSubscribed = true, onSubs
                 }}
               >
                 <Image
-                  source={require('../../../../assets/play.png')}
+                  source={require('../../../../assets/home/play.png')}
                   style={{
                     width: scaleSize(88),
                     height: scaleSize(38),

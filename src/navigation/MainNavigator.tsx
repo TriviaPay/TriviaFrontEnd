@@ -17,6 +17,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens, enableFreeze } from 'react-native-screens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSelector, shallowEqual } from 'react-redux';
 
 // CRITICAL: Enable screens for better navigation performance
 enableScreens(true);
@@ -58,6 +59,7 @@ import SettingsScreen from '../features/settings/screens/SettingsScreen';
 import { useDailyRewards, useTheme } from '../hooks/useReduxHooks';
 import { typography } from '../theme/typography';
 import DailyBonusPopup from '../components/daily-bonus/daily-bonus-popup';
+import { selectIsAuthenticated } from '../utils/selectors';
 import { logger } from '../lib/utils/logger';
 import audioManager from '../lib/audio/AudioManagerSafe';
 import { interstitialAdService } from '../ads/InterstitialAdService';
@@ -793,7 +795,7 @@ const TabNavigator = (): React.JSX.Element => {
           options={{
             tabBarIcon: ({ size }) => (
               <Image
-                source={require('../../assets/Leaderboard.png')}
+                source={require('../../assets/navigation/Leaderboard.png')}
                 style={{ width: size, height: size }}
                 resizeMode="contain"
               />
@@ -816,7 +818,7 @@ const TabNavigator = (): React.JSX.Element => {
           options={{
             tabBarIcon: ({ size }) => (
               <Image
-                source={require('../../assets/Chat.png')}
+                source={require('../../assets/navigation/Chat.png')}
                 style={{ width: size, height: size }}
                 resizeMode="contain"
               />
@@ -835,7 +837,7 @@ const TabNavigator = (): React.JSX.Element => {
           options={{
             tabBarIcon: ({ size }) => (
               <Image
-                source={require('../../assets/Home.png')}
+                source={require('../../assets/navigation/Home.png')}
                 style={{ width: size, height: size }}
                 resizeMode="contain"
               />
@@ -858,7 +860,7 @@ const TabNavigator = (): React.JSX.Element => {
           options={{
             tabBarIcon: ({ size }) => (
               <Image
-                source={require('../../assets/home/shop.png')}
+                source={require('../../assets/navigation/shop.png')}
                 style={{ width: size, height: size }}
                 resizeMode="contain"
               />
@@ -885,7 +887,7 @@ const TabNavigator = (): React.JSX.Element => {
           options={{
             tabBarIcon: ({ size }) => (
               <Image
-                source={require('../../assets/wallet.png')}
+                source={require('../../assets/navigation/wallet.png')}
                 style={{ width: size, height: size }}
                 resizeMode="contain"
               />
@@ -909,13 +911,13 @@ const TabNavigator = (): React.JSX.Element => {
 
 // Main Navigator
 const MainNavigator = (): React.JSX.Element => {
+  const isAuthenticated = useSelector(selectIsAuthenticated, shallowEqual);
   const {
     showPopupOnAppOpen,
     isLoadingPopup,
     handleClosePopup,
     updateRewards,
     fetchWeeklyStatus,
-    checkPopupOnAppOpen,
     claimDailyReward,
   } = useDailyRewards();
 
@@ -933,23 +935,32 @@ const MainNavigator = (): React.JSX.Element => {
   }, []);
 
   useEffect(() => {
+    // Only initialize Daily Rewards if authenticated
+    if (!isAuthenticated) {
+      if (dailyRewardsInitializedRef.current) {
+        // Reset if somehow it was set but now we are not authenticated (e.g. logout)
+        dailyRewardsInitializedRef.current = false;
+      }
+      return;
+    }
+
     if (dailyRewardsInitializedRef.current) return;
+    dailyRewardsInitializedRef.current = true;
 
     const initializeDailyRewards = async () => {
       try {
-        dailyRewardsInitializedRef.current = true;
-        const result = await fetchWeeklyStatus();
-        if (result.type && result.type.endsWith('/rejected')) {
-          logger.warn('Weekly status fetch failed', 'APP');
-        }
-        setTimeout(() => checkPopupOnAppOpen(), 300);
+        logger.log('🚀 Initializing Daily Rewards after authentication...', 'APP');
+        // 1. Fetch current status
+        await fetchWeeklyStatus();
       } catch (error: any) {
-        logger.warn('Error initializing daily rewards:', 'APP', error?.message);
-        setTimeout(() => checkPopupOnAppOpen(), 300);
+        logger.error('Error initializing daily rewards:', 'APP', error?.message);
+        // Reset ref on failure to allow retry on next mount or auth change
+        dailyRewardsInitializedRef.current = false;
       }
     };
+
     initializeDailyRewards();
-  }, []);
+  }, [fetchWeeklyStatus, isAuthenticated]);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -1087,9 +1098,15 @@ const MainNavigator = (): React.JSX.Element => {
         />
       </MainStack.Navigator>
 
-      {!isLoadingPopup && (
-        <DailyBonusPopup visible={showPopupOnAppOpen} onClose={handleClosePopup} />
-      )}
+      {__DEV__ && logger.debug('DailyBonusPopup State', 'APP', {
+        showPopupOnAppOpen,
+        isLoadingPopup,
+        visible: showPopupOnAppOpen && !isLoadingPopup
+      })}
+      <DailyBonusPopup
+        visible={showPopupOnAppOpen && !isLoadingPopup}
+        onClose={handleClosePopup}
+      />
     </View>
   );
 };

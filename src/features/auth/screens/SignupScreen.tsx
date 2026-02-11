@@ -2125,7 +2125,7 @@ const SignupScreen: React.FC = () => {
                       />
                       {referralCodeChecking && (
                         <LottieView
-                          source={require('../../../../assets/signup/DogParachute.json')}
+                          source={require('../../../../assets/animations/LoadingBar.json')}
                           autoPlay
                           loop
                           style={{

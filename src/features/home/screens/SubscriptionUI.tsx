@@ -162,7 +162,7 @@ const SubscriptionUI: React.FC<SubscriptionUIProps> = ({
               }}
             >
               <Image
-                source={require('../../../../assets/bronze.png')}
+                source={require('../../../../assets/common/bronze.png')}
                 style={{ width: scaleSize(35), height: scaleSize(35), marginRight: scaleSize(10) }}
                 resizeMode="contain"
               />
@@ -181,18 +181,25 @@ const SubscriptionUI: React.FC<SubscriptionUIProps> = ({
                 >
                   Bronze
                 </Text>
-                <Text
-                  style={[
-                    typography.h2,
-                    {
-                      fontSize: getResponsiveFontSize(scaleSize(14)),
-                      color: '#FFD700',
-                      top: scaleSize(0),
-                    },
-                  ]}
-                >
-                  {bronzePrizePool ? bronzePrizePool.toLocaleString() : '0'} TC
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text
+                    style={[
+                      typography.h2,
+                      {
+                        fontSize: getResponsiveFontSize(scaleSize(14)),
+                        color: '#FFD700',
+                        top: scaleSize(0),
+                      },
+                    ]}
+                  >
+                    {bronzePrizePool ? bronzePrizePool.toLocaleString() : '0'}
+                  </Text>
+                  <Image
+                    source={require('../../../../assets/icons/Tpcoin.png')}
+                    style={{ width: scaleSize(18), height: scaleSize(16), marginLeft: scaleSize(4) }}
+                    resizeMode="contain"
+                  />
+                </View>
               </View>
             </View>
           ) : (
@@ -212,7 +219,7 @@ const SubscriptionUI: React.FC<SubscriptionUIProps> = ({
               }}
             >
               <Image
-                source={require('../../../../assets/silver.png')}
+                source={require('../../../../assets/common/silver.png')}
                 style={{ width: scaleSize(35), height: scaleSize(35), marginRight: scaleSize(10) }}
                 resizeMode="contain"
               />
@@ -231,18 +238,25 @@ const SubscriptionUI: React.FC<SubscriptionUIProps> = ({
                 >
                   Silver
                 </Text>
-                <Text
-                  style={[
-                    typography.h2,
-                    {
-                      fontSize: getResponsiveFontSize(scaleSize(14)),
-                      color: '#FFFFFF',
-                      top: scaleSize(0),
-                    },
-                  ]}
-                >
-                  {silverPrizePool ? silverPrizePool.toLocaleString() : '0'} TC
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text
+                    style={[
+                      typography.h2,
+                      {
+                        fontSize: getResponsiveFontSize(scaleSize(14)),
+                        color: '#FFFFFF',
+                        top: scaleSize(0),
+                      },
+                    ]}
+                  >
+                    {silverPrizePool ? silverPrizePool.toLocaleString() : '0'}
+                  </Text>
+                  <Image
+                    source={require('../../../../assets/icons/Tpcoin.png')}
+                    style={{ width: scaleSize(18), height: scaleSize(16), marginLeft: scaleSize(4) }}
+                    resizeMode="contain"
+                  />
+                </View>
               </View>
             </View>
           )}
@@ -519,7 +533,7 @@ const SubscriptionUI: React.FC<SubscriptionUIProps> = ({
                 }}
               >
                 <Image
-                  source={require('../../../../assets/play.png')}
+                  source={require('../../../../assets/home/play.png')}
                   style={{
                     width: scaleSize(88),
                     height: scaleSize(38),

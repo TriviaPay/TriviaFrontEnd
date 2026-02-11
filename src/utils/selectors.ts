@@ -22,8 +22,9 @@ const selectDailyRewardsState = (state: RootState) => state.dailyRewards;
 // Memoized selectors with reselect
 export const selectIsAuthenticated = createSelectorFn(
   [selectAuthState],
-  auth => auth.isAuthenticated
+  auth => auth?.isAuthenticated ?? false
 );
+
 
 export const selectCurrentUser = createSelectorFn([selectAuthState], auth => auth.user);
 

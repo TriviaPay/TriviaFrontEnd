@@ -1335,8 +1335,8 @@ const LeaderboardScreen: React.FC = () => {
                           <Image
                             source={
                               tab === 'bronze'
-                                ? require('../../../../assets/bronze.png')
-                                : require('../../../../assets/silver.png')
+                                ? require('../../../../assets/common/bronze.png')
+                                : require('../../../../assets/common/silver.png')
                             }
                             style={{
                               width: scaleSize(24),
@@ -1430,7 +1430,7 @@ const LeaderboardScreen: React.FC = () => {
                   {/* Top Winners - Podium Style */}
                   {getCurrentLoading() ? (
                     <LottieView
-                      source={require('../../../../assets/signup/DogParachute.json')}
+                      source={require('../../../../assets/animations/LoadingBar.json')}
                       autoPlay
                       loop
                       style={{ width: scaleSize(100), height: scaleSize(100) }}
@@ -1520,7 +1520,7 @@ const LeaderboardScreen: React.FC = () => {
                       }}
                     >
                       <LottieView
-                        source={require('../../../../assets/signup/DogParachute.json')}
+                        source={require('../../../../assets/animations/LoadingBar.json')}
                         autoPlay
                         loop
                         style={{ width: scaleSize(150), height: scaleSize(150) }}
@@ -1670,7 +1670,7 @@ const LeaderboardScreen: React.FC = () => {
                   onPress={() => setIsJoinChallengeModalVisible(false)}
                 >
                   <Image
-                    source={require('../../../../assets/closeIcon.png')}
+                    source={require('../../../../assets/common/closeIcon.png')}
                     style={{ width: scaleSize(24), height: scaleSize(24) }}
                   />
                 </SoundTouchableOpacity>

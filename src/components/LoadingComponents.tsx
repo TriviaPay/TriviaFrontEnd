@@ -30,7 +30,7 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({
   return (
     <View style={styles.indicatorContainer}>
       <LottieView
-        source={require('../../assets/signup/DogParachute.json')}
+        source={require('../../assets/animations/LoadingBar.json')}
         autoPlay
         loop
         style={{ width: size, height: size }}
@@ -77,7 +77,7 @@ export const FullScreenLoader: React.FC<FullScreenLoaderProps> = ({
       return (
         <View style={[styles.fullScreen, { backgroundColor: colors.background }]}>
           <LottieView
-            source={require('../../assets/signup/DogParachute.json')}
+            source={require('../../assets/animations/LoadingBar.json')}
             autoPlay
             loop
             style={{ width: 150, height: 150 }}
@@ -91,7 +91,7 @@ export const FullScreenLoader: React.FC<FullScreenLoaderProps> = ({
   return (
     <View style={[styles.fullScreen, { backgroundColor: colors.background }]}>
       <LottieView
-        source={require('../../assets/signup/DogParachute.json')}
+        source={require('../../assets/animations/LoadingBar.json')}
         autoPlay
         loop
         style={{ width: 150, height: 150 }}
@@ -116,7 +116,7 @@ export const InlineLoader: React.FC<InlineLoaderProps> = ({ message, size = 50 }
   return (
     <View style={styles.inlineContainer}>
       <LottieView
-        source={require('../../assets/signup/DogParachute.json')}
+        source={require('../../assets/animations/LoadingBar.json')}
         autoPlay
         loop
         style={{ width: size, height: size }}

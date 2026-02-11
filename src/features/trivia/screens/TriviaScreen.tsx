@@ -18,6 +18,7 @@ import {
   Alert,
   Modal,
   StatusBar,
+  StyleSheet,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useNavigation, useIsFocused, useRoute, RouteProp } from '@react-navigation/native';
@@ -4016,7 +4017,7 @@ const TriviaScreen: React.FC = () => {
             <GradientText text="Trivia Challenge" />
             <View style={{ marginTop: scaleSize(10) }}>
               <LottieView
-                source={require('../../../../assets/signup/DogParachute.json')}
+                source={require('../../../../assets/animations/LoadingBar.json')}
                 autoPlay
                 loop
                 style={{ width: scaleSize(150), height: scaleSize(150) }}
@@ -4043,1028 +4044,657 @@ const TriviaScreen: React.FC = () => {
 
   return (
     <ScreenErrorBoundary screenName="TriviaScreen">
-      <SafeScreenWrapper
-        statusBarStyle="light-content"
-        backgroundColor="transparent"
-        translucent={true}
-        edges={['top', 'bottom', 'left', 'right']}
-        showStatusBar={false}
-        style={{ flex: 1, backgroundColor: '#1e90ff' }}
-      >
-        <ScreenBackButtonHandler action="navigate" />
-        <View style={containerStyle}>
-          {/* Lottie background removed - using homebg.png only */}
+      <View style={{ flex: 1, backgroundColor: '#1e90ff' }}>
+        <SafeScreenWrapper
+          statusBarStyle="light-content"
+          backgroundColor="transparent"
+          translucent={true}
+          edges={['top', 'bottom', 'left', 'right']}
+          showStatusBar={false}
+          style={{ flex: 1 }}
+        >
+          <ScreenBackButtonHandler action="navigate" />
+          <View style={containerStyle}>
+            {/* Lottie background removed - using homebg.png only */}
 
-          {/* Correct Answer Lottie Animation - Shows when correct answer is chosen */}
-          {/* CRITICAL: Show marks FIRST, then lottie animation plays on top */}
-          {showCorrectAnimation && (
-            <View
-              pointerEvents="box-none"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 150, // Lower than marks (200) so marks show first, then lottie
-                elevation: 150, // Android elevation
-                backgroundColor: 'transparent',
-              }}
-            >
-              <LottieView
-                ref={correctAnimationRef}
-                source={require('../../../../assets/trivia/Correct Animation.json')}
-                autoPlay={false}
-                loop={false}
-                renderMode="HARDWARE"
-                hardwareAccelerationAndroid={Platform.OS === 'android'}
-                cacheStrategy="strong"
-                cacheComposition={true}
-                enableMergePathsAndroidForKitKatAndAbove={true}
-                style={{
-                  width: scaleSize(300),
-                  height: scaleSize(300),
-                }}
-                onAnimationFinish={isCancelled => {
-                  // CRITICAL: Only proceed if animation wasn't cancelled and fully completed
-                  // Wait for animation to fully complete before proceeding
-                  logger.debug('Correct Lottie onAnimationFinish', 'TRIVIA', { isCancelled });
-                  if (!isCancelled) {
-                    // Mark animation as no longer playing
-                    isCorrectAnimationPlaying.current = false;
-
-                    // CRITICAL: Keep animation visible - animation frame stays visible
-                    // Call handler immediately since animation has completed
-                    // The handler will manage the timing for hiding and showing CongratsScreen
-                    logger.debug(
-                      'Correct Lottie - Animation completed, calling handleCorrectAnimationEnd',
-                      'TRIVIA'
-                    );
-                    handleCorrectAnimationEnd();
-                  } else {
-                    // Animation was cancelled - mark as not playing
-                    logger.debug('Correct Lottie - Animation was cancelled', 'TRIVIA');
-                    isCorrectAnimationPlaying.current = false;
-                  }
-                }}
-                speed={1.0}
-              />
-            </View>
-          )}
-
-          {/* Wrong Answer Lottie Animation - Shows when wrong answer is chosen */}
-          {/* CRITICAL: Show marks FIRST, then lottie animation plays on top */}
-          {showWrongAnimation && (
-            <View
-              pointerEvents="box-none"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 150, // Higher than options but marks show first
-                elevation: 150, // Android elevation
-                backgroundColor: 'transparent',
-              }}
-            >
-              <LottieView
-                ref={wrongAnimationRef}
-                source={require('../../../../assets/trivia/Wrong answer.json')}
-                autoPlay={false}
-                loop={false}
-                renderMode="HARDWARE"
-                hardwareAccelerationAndroid={Platform.OS === 'android'}
-                cacheStrategy="strong"
-                cacheComposition={true}
-                enableMergePathsAndroidForKitKatAndAbove={true}
-                style={{
-                  width: scaleSize(300),
-                  height: scaleSize(300),
-                }}
-                onAnimationFinish={isCancelled => {
-                  // CRITICAL: Only proceed if animation wasn't cancelled and fully completed
-                  // Wait for animation to fully complete before proceeding
-                  logger.debug('Wrong Lottie onAnimationFinish', 'TRIVIA', { isCancelled });
-                  if (!isCancelled) {
-                    // Mark animation as no longer playing
-                    isWrongAnimationPlaying.current = false;
-
-                    // CRITICAL: Keep animation visible - animation frame stays visible
-                    // Call handler immediately since animation has completed
-                    // The handler will manage the timing for hiding and showing retry popup/congrats screen
-                    logger.debug(
-                      'Wrong Lottie - Animation completed, calling handleWrongAnimationEnd',
-                      'TRIVIA'
-                    );
-                    handleWrongAnimationEnd();
-                  } else {
-                    // Animation was cancelled - mark as not playing
-                    logger.debug('Wrong Lottie - Animation was cancelled', 'TRIVIA');
-                    isWrongAnimationPlaying.current = false;
-                  }
-                }}
-                speed={1.0}
-              />
-            </View>
-          )}
-
-          {/* Lifeline animations removed */}
-
-          {/* Old Confetti Component - Keep for compatibility but won't show anymore */}
-
-          {/* Main content - Removed outer TouchableWithoutFeedback to allow tap overlay to work properly */}
-          {/* Tap handling is now done by dedicated tap overlays outside ScrollView */}
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: scaleSize(100) }}
-            showsVerticalScrollIndicator={(() => {
-              const mode = routeMode || currentMode || 'free';
-              // Hide scrollbar in free mode
-              return mode !== 'free';
-            })()}
-            scrollEnabled={(() => {
-              const mode = routeMode || currentMode || 'free';
-              // Disable scrolling in free mode
-              return mode !== 'free';
-            })()}
-            bounces={false}
-          >
-            <View style={{ flex: 1, overflow: 'visible' }}>
-              {/* Header with Gems Display */}
+            {/* Correct Answer Lottie Animation - Shows when correct answer is chosen */}
+            {/* CRITICAL: Show marks FIRST, then lottie animation plays on top */}
+            {showCorrectAnimation && (
               <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  paddingHorizontal: scaleSize(10), // Standardized to match Header component
-                  paddingVertical: scaleSize(4), // Standardized to match Header component
-                  width: '100%',
-                  height: scaleSize(60),
-                  marginTop: scaleSize(6),
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: scaleSize(6) }}>
-                  {/* Gem Background Image with Value - Standardized to match Header component */}
-                  <ImageBackground
-                    source={require('../../../../assets/gemBg.png')}
-                    style={{
-                      width: scaleSize(110), // Standardized to match Header component
-                      height: scaleSize(45), // Standardized to match Header component
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                    }}
-                    resizeMode="contain"
-                  >
-                    <Text
-                      style={{
-                        color: '#000000',
-                        fontSize: scaleSize(14),
-                        fontWeight: 'bold',
-                        fontFamily: 'Baloo2',
-                      }}
-                    >
-                      {profileGems.toLocaleString()}
-                    </Text>
-                  </ImageBackground>
-                  {/* Coin Background Image with Value - Standardized to match Header component */}
-                  <ImageBackground
-                    source={require('../../../../assets/coinBg.png')}
-                    style={{
-                      width: scaleSize(110), // Standardized to match Header component
-                      height: scaleSize(45), // Standardized to match Header component
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                    }}
-                    resizeMode="contain"
-                  >
-                    <Text
-                      style={{
-                        color: '#000000',
-                        fontSize: scaleSize(14),
-                        fontWeight: 'bold',
-                        fontFamily: 'Baloo2',
-                      }}
-                    >
-                      {profileCoins.toLocaleString()}
-                    </Text>
-                  </ImageBackground>
-                </View>
-
-                {/* Reset button removed - no reset functionality */}
-
-                <Animated.View style={infoButtonAnimation.animatedStyle}>
-                  <SoundTouchableOpacity
-                    onPress={handleInfoPress}
-                    onPressIn={infoButtonAnimation.animatePress}
-                    onPressOut={infoButtonAnimation.animateRelease}
-                    ref={infoIconRef}
-                    style={{
-                      borderRadius: scaleSize(20),
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 0,
-                      width: scaleSize(48),
-                      height: scaleSize(48),
-                    }}
-                    activeOpacity={1}
-                  >
-                    <ImageBackground
-                      source={require('../../../../assets/trivia/infoIcon.png')}
-                      style={{
-                        width: scaleSize(34),
-                        height: scaleSize(34),
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                      resizeMode="contain"
-                    />
-                  </SoundTouchableOpacity>
-                </Animated.View>
-              </View>
-
-              <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ flexGrow: 1, paddingBottom: scaleSize(100) }}
-                showsVerticalScrollIndicator={(() => {
-                  const mode = routeMode || currentMode || 'free';
-                  // Hide scrollbar in free mode
-                  return mode !== 'free';
-                })()}
-                scrollEnabled={(() => {
-                  const mode = routeMode || currentMode || 'free';
-                  // Disable scrolling in free mode
-                  return mode !== 'free';
-                })()}
-                bounces={false}
-              >
-                <View
-                  style={{
-                    flex: 1,
-                    justifyContent: 'flex-start',
-                    zIndex: showCongratsScreen ? 0 : 1,
-                    elevation: showCongratsScreen ? 0 : 1,
-                    overflow: 'visible',
-                  }}
-                >
-                  <Animated.View
-                    style={{
-                      transform: [{ translateX: headerAnim }],
-                      alignItems: 'center',
-                      marginBottom: scaleSize(2),
-                    }}
-                  >
-                    <GradientText text="Trivia Challenge" />
-                  </Animated.View>
-
-                  <Animated.View
-                    style={{
-                      transform: [{ translateX: questionAnim }],
-                      marginHorizontal: scaleSize(4),
-                      marginBottom: scaleSize(0),
-                      overflow: 'visible', // Allow question card to display fully
-                    }}
-                  >
-                    <SoundTouchableOpacity
-                      activeOpacity={alreadyAnswered ? 0.8 : 1}
-                      onPress={() => {
-                        const mode = routeMode || currentMode || 'free';
-                        if (mode !== 'free' && alreadyAnswered && !isNavigatingWithArrows.current) {
-                          // Don't show modal during arrow navigation
-                          setShowCongratsScreen(true);
-                        }
-                      }}
-                      disabled={(routeMode || currentMode || 'free') === 'free' || !alreadyAnswered}
-                      style={{ overflow: 'visible' }} // Allow question card to display fully
-                    >
-                      <ImageBackground
-                        source={require('../../../../assets/trivia/questionCard.png')}
-                        style={{
-                          borderRadius: scaleSize(16),
-                          overflow: 'hidden',
-                          width: '100%',
-                          aspectRatio: 320 / 300,
-                          alignSelf: 'center',
-                          justifyContent: 'center',
-                          top: scaleSize(-60),
-                        }}
-                        resizeMode="contain"
-                      >
-                        {/* Tier-specific Badge for Bronze and Silver levels */}
-                        {(currentMode === 'bronze' || currentMode === 'silver') && (
-                          <Image
-                            source={
-                              currentMode === 'bronze'
-                                ? require('../../../../assets/home/bronze.png')
-                                : require('../../../../assets/home/silver.png')
-                            }
-                            style={{
-                              position: 'absolute',
-                              width: scaleSize(48),
-                              height: scaleSize(48),
-                              top: scaleSize(60), // Set to 30px
-                              right: scaleSize(-2), // Moved right 10px from -2 (so -2 + 10 = 8)
-                              zIndex: 10,
-                            }}
-                            resizeMode="contain"
-                          />
-                        )}
-                        <View
-                          style={{
-                            position: 'absolute',
-                            top: '25%',
-                            left: '18%',
-                            right: '15%',
-                            bottom: '25%',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <View style={{ overflow: 'hidden', width: '100%', alignItems: 'center' }}>
-                            <Animated.Text
-                              style={[
-                                typography.h4,
-                                {
-                                  fontSize: scaleSize(18),
-                                  color: 'white',
-                                  textAlign: 'center',
-                                  lineHeight: scaleSize(24),
-                                  paddingHorizontal: scaleSize(10),
-                                  flexShrink: 1,
-                                  opacity: questionTextOpacity,
-                                  marginBottom: scaleSize(8),
-                                  flexWrap: 'wrap',
-                                },
-                              ]}
-                              adjustsFontSizeToFit={true}
-                              minimumFontScale={0.7}
-                              numberOfLines={0}
-                            >
-                              {questionForDisplay?.text ||
-                                question?.text ||
-                                apiQuestion?.question ||
-                                ''}
-                            </Animated.Text>
-
-                            {/* Hint display with lightbulb icon - shown only after taking hint */}
-                            {hintTooltipText && (
-                              <Animated.View
-                                style={{
-                                  flexDirection: 'row',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  marginTop: scaleSize(2), // Moved up 6px (from 8 to 2) to avoid overlapping with prize pool text
-                                  paddingHorizontal: scaleSize(12),
-                                  paddingVertical: scaleSize(8),
-                                  backgroundColor: '#FFD700',
-                                  borderRadius: scaleSize(12),
-                                  opacity: questionTextOpacity,
-                                }}
-                              >
-                                <Icon
-                                  name="lightbulb-on-outline"
-                                  size={scaleSize(18)}
-                                  color="#000000"
-                                  style={{ marginRight: scaleSize(8) }}
-                                />
-                                <Text
-                                  style={[
-                                    typography.bodySmall,
-                                    {
-                                      color: '#000000',
-                                      fontSize: scaleSize(14),
-                                      lineHeight: scaleSize(20),
-                                      textAlign: 'center',
-                                      flex: 1,
-                                    },
-                                  ]}
-                                  numberOfLines={2}
-                                >
-                                  {hintTooltipText}
-                                </Text>
-                              </Animated.View>
-                            )}
-                          </View>
-                        </View>
-                      </ImageBackground>
-                    </SoundTouchableOpacity>
-                  </Animated.View>
-
-                  <View
-                    style={{
-                      marginBottom: scaleSize(0),
-                      paddingHorizontal: scaleSize(0),
-                      marginTop: scaleSize(-110), // Moved down by 20px (from -130 to -110) to give space for yellow hint tooltip above green prize pool text
-                      zIndex: showInfoTooltip ? 50 : 100, // Lower z-index when tooltip is visible so overlay covers it
-                      elevation: showInfoTooltip ? 50 : 100, // Android elevation
-                    }}
-                  >
-                    <View
-                      style={{
-                        padding: scaleSize(10),
-                        alignItems: 'center',
-                        marginTop: scaleSize(0), // No gap above options
-                        justifyContent: 'center',
-                        zIndex: showInfoTooltip ? 50 : 100, // Lower z-index when tooltip is visible so overlay covers it
-                        elevation: showInfoTooltip ? 50 : 100, // Android elevation
-                      }}
-                    >
-                      {(() => {
-                        const optionsSource =
-                          questionWithDisabledOptions || questionForDisplay || question;
-                        const options = optionsSource?.options;
-                        logger.debug('Rendering Options', 'TRIVIA', {
-                          hasQuestionWithDisabled: !!questionWithDisabledOptions,
-                          hasQuestionForDisplay: !!questionForDisplay,
-                          hasQuestion: !!question,
-                          optionsCount: options?.length || 0,
-                          selectedAnswer,
-                        });
-
-                        if (!options || options.length === 0) {
-                          logger.warn('NO OPTIONS TO RENDER!', 'TRIVIA');
-                          return null;
-                        }
-
-                        return options.map((option, index) => {
-                          // Use pre-defined animation hooks based on index
-                          const getOptionAnimation = (index: number) => {
-                            switch (index) {
-                              case 0:
-                                return option1Animation;
-                              case 1:
-                                return option2Animation;
-                              case 2:
-                                return option3Animation;
-                              case 3:
-                                return option4Animation;
-                              default:
-                                return option1Animation;
-                            }
-                          };
-
-                          const optionAnimation = getOptionAnimation(index);
-
-                          // CENTRALIZED CORRECT ANSWER LOGIC:
-                          // Ensure we always have the best source of truth for the correct answer
-                          const resolvedCorrectAnswer = isFreeModeReviewMode
-                            ? derivedReviewState.apiCorrectAnswer || ''
-                            : (
-                              // 1. Submission Result (Freshest)
-                              submissionResult?.correct_answer ||
-                              // 2. Current Question Correct Answer (Redux/API)
-                              (currentMode === 'bronze' ? currentBronzeModeQuestion?.correct_answer :
-                                currentMode === 'silver' ? currentSilverModeQuestion?.correct_answer :
-                                  currentFreeModeQuestion?.correct_answer) ||
-                              // 3. API Question Fallback (State)
-                              apiCorrectAnswer ||
-                              // 4. Raw API Question Fallback (Selector)
-                              apiQuestion?.correct_answer ||
-                              ''
-                            );
-
-                          return (
-                            <Animated.View
-                              key={option.id}
-                              style={{
-                                transform: [
-                                  { translateX: optionsAnim[index] || new Animated.Value(0) },
-                                ],
-                                width: '100%',
-                                alignItems: 'center',
-                                marginBottom: scaleSize(4), // 4px gap between options
-                              }}
-                            >
-                              <Animated.View style={optionAnimation.animatedStyle}>
-                                <OptionButton
-                                  option={option}
-                                  optionIndex={index}
-                                  isSelected={
-                                    selectedAnswer?.toLowerCase() === option.id?.toLowerCase()
-                                  }
-                                  // CRITICAL: Only show correct/wrong AFTER submission completes - prevent race condition
-                                  // Use submissionResult to ensure we only show marks after actual API response
-                                  isSubmitted={
-                                    (localIsSubmitted || isSubmitted) &&
-                                    (!!submissionResult || alreadyAnswered || (isFreeModeReviewMode && !!derivedReviewState.previousAnswer))
-                                  }
-                                  correctAnswer={resolvedCorrectAnswer}
-                                  onPress={() => handleOptionSelect(option.id)}
-                                  hasAnySelection={!!(selectedAnswer || (isFreeModeReviewMode && derivedReviewState.previousAnswer))}
-                                  animatedStyle={optionAnimation.animatedStyle}
-                                  onPressIn={optionAnimation.animatePress}
-                                  onPressOut={optionAnimation.animateRelease}
-                                  previousAnswer={isFreeModeReviewMode ? derivedReviewState.previousAnswer : previousAnswer}
-                                  previousAnswerCorrect={isFreeModeReviewMode ? derivedReviewState.previousAnswerCorrect : previousAnswerCorrect}
-                                  // CRITICAL: Only set alreadyAnswered if question was actually answered from API, not just submitted
-                                  alreadyAnswered={
-                                    (alreadyAnswered && !localIsSubmitted) || // Already answered from API, not just submitted
-                                    (isFreeModeReviewMode && !!derivedReviewState.previousAnswer)
-                                  }
-                                />
-                              </Animated.View>
-                            </Animated.View>
-                          );
-                        });
-                      })()}
-
-                      {/* Manual Submit Button */}
-                      {!isFreeModeReviewMode && !alreadyAnswered && !isSubmitted && (
-                        <Animated.View
-                          style={{ width: '100%', marginTop: scaleSize(20), alignItems: 'center' }}
-                        >
-                          <SoundTouchableOpacity
-                            onPress={() => handleSubmit()}
-                            disabled={!selectedAnswer}
-                            style={{
-                              width: '80%',
-                              height: scaleSize(50),
-                              borderRadius: scaleSize(25),
-                              overflow: 'hidden',
-                              opacity: selectedAnswer ? 1 : 0.5,
-                            }}
-                          >
-                            <ImageBackground
-                              source={require('../../../../assets/trivia/submitBtn.png')}
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                              }}
-                              resizeMode="stretch"
-                            >
-                              <Text
-                                style={{
-                                  color: 'white',
-                                  fontSize: scaleSize(18),
-                                  fontWeight: 'bold',
-                                  fontFamily: 'Baloo2',
-                                }}
-                              >
-                                SUBMIT ANSWER
-                              </Text>
-                            </ImageBackground>
-                          </SoundTouchableOpacity>
-                        </Animated.View>
-                      )}
-                      {/* Free Mode Navigation Arrows - Moved inside options container, below options */}
-                      {(() => {
-                        const mode = routeMode || currentMode || 'free';
-
-                        // Only show arrows if:
-                        // 1. Mode is free
-                        // 2. Questions are loaded
-                        // 3. User has COMPLETED (completed === true OR all_questions_answered === true)
-                        const isCompleted = freeModeStatus?.progress?.completed === true;
-                        const allQuestionsAnswered = freeModeStatus?.progress?.all_questions_answered === true;
-                        const shouldShowArrows =
-                          mode === 'free' &&
-                          freeModeQuestions &&
-                          freeModeQuestions.length > 0 &&
-                          (isCompleted || allQuestionsAnswered) &&
-                          !showCongratsScreen; // CRITICAL: Hide when CongratsScreen is shown
-
-                        if (!shouldShowArrows) {
-                          return null;
-                        }
-
-                        // For navigation arrows, we don't need review mode logic
-                        // Just show arrows to navigate through questions
-                        const sortedQuestions = [...freeModeQuestions].sort(
-                          (a: any, b: any) => (a?.question_order ?? 0) - (b?.question_order ?? 0)
-                        );
-                        const currentQuestionId = currentFreeModeQuestion?.question_id;
-                        const currentIndex = sortedQuestions.findIndex(
-                          (q: any) => q.question_id === currentQuestionId
-                        );
-
-                        const isPrevDisabled = currentIndex <= 0; // Disable if at first question
-                        const isNextDisabled = currentIndex >= sortedQuestions.length - 1; // Disable if at last question
-
-                        return (
-                          <View
-                            style={{
-                              width: '100%',
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              paddingHorizontal: scaleSize(20),
-                              marginTop: scaleSize(20), // Space above navigation arrows
-                              marginBottom: scaleSize(10), // Add 10px spacing below navigation section
-                              zIndex: 10000,
-                              elevation: 10000,
-                            }}
-                          >
-                            <SoundTouchableOpacity
-                              onPress={() => {
-                                console.log('🔵 [NAVIGATION] Prev button clicked');
-                                handleFreeModeReviewPrev();
-                              }}
-                              disabled={isPrevDisabled}
-                              activeOpacity={0.9}
-                              style={{
-                                opacity: isPrevDisabled ? 0.4 : 1,
-                                padding: scaleSize(4),
-                                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                borderRadius: scaleSize(20),
-                                zIndex: 10001,
-                                elevation: 10001,
-                              }}
-                            >
-                              <Icon name="chevron-left" size={scaleSize(30)} color="#ffffff" />
-                            </SoundTouchableOpacity>
-
-                            <View
-                              style={{
-                                alignItems: 'center',
-                                flex: 1,
-                                padding: scaleSize(8),
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: '#ffffff',
-                                  fontFamily: 'Baloo2',
-                                  fontSize: scaleSize(16),
-                                  fontWeight: 'bold',
-                                  textShadowColor: 'rgba(0, 0, 0, 0.75)',
-                                  textShadowOffset: { width: 0, height: 1 },
-                                  textShadowRadius: 3,
-                                }}
-                              >
-                                Navigate Questions ({currentIndex + 1}/{sortedQuestions.length})
-                              </Text>
-                            </View>
-
-                            <SoundTouchableOpacity
-                              onPress={() => {
-                                console.log('🔵 [NAVIGATION] Next button clicked');
-                                handleFreeModeReviewNext();
-                              }}
-                              disabled={isNextDisabled}
-                              activeOpacity={0.9}
-                              style={{
-                                opacity: isNextDisabled ? 0.4 : 1,
-                                padding: scaleSize(4),
-                                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                                borderRadius: scaleSize(20),
-                                zIndex: 10001,
-                                elevation: 10001,
-                              }}
-                            >
-                              <Icon name="chevron-right" size={scaleSize(30)} color="#ffffff" />
-                            </SoundTouchableOpacity>
-                          </View>
-                        );
-                      })()}
-                    </View>
-                  </View>
-
-                  {/* Lifeline buttons removed */}
-
-                  {/* Background opacity overlay when info tooltip is visible - Must be after options/submit in render tree */}
-                  {showInfoTooltip && (
-                    <SoundTouchableOpacity
-                      activeOpacity={1}
-                      onPress={handleInfoPress}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                        zIndex: 999, // Higher than all content (options 100, lifelines 150) to cover everything
-                        elevation: 999, // Android elevation
-                      }}
-                    >
-                      <View />
-                    </SoundTouchableOpacity>
-                  )}
-
-                </View>
-              </ScrollView>
-
-              {/* REMOVED: Review section that shows after first answer - only show navigation arrows when all questions completed */}
-
-              <Tooltip
-                isVisible={showInfoTooltip}
-                onClose={handleInfoPress}
-                anchorPosition={tooltipAnchor}
-              />
-
-              {/* Congrats Modal Popup - For all modes including Free mode completion */}
-              <CongratsScreen
-                visible={showCongratsScreen}
-                onClose={() => {
-                  const mode = routeMode || currentMode || 'free';
-                  if (mode === 'free') {
-                    handleFreeModeCompletionClose();
-                  } else {
-                    handleCongratsClose();
-                  }
-                }}
-                selectedAnswer={selectedAnswer || ''}
-                correctAnswer={
-                  apiCorrectAnswer ||
-                  questionForDisplay?.correctAnswer ||
-                  question?.correctAnswer ||
-                  ''
-                }
-                question={(questionForDisplay || question) as Question}
-                alreadyAnswered={
-                  alreadyAnswered || Boolean(error && error.includes('already answered'))
-                }
-                onExtraChance={undefined} // Retry logic removed
-                extraChanceCost={0}
-                userGems={realGems}
-                freeModeStatus={routeMode === 'free' ? freeModeStatus : undefined} // Pass free mode status for score display
-                correctAnswersCount={freeModeStatus?.progress?.correct_answers || 0}
-              />
-
-              {/* Change Question Success Modal */}
-              <Modal
-                visible={showChangeQuestionSuccessModal}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setShowChangeQuestionSuccessModal(false)}
-              >
-                <View
-                  style={{
-                    flex: 1,
-                    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    zIndex: 10000, // High z-index to ensure modal appears above all content
-                    elevation: 10000, // Android elevation
-                  }}
-                >
-                  <View
-                    style={{
-                      backgroundColor: 'white',
-                      borderRadius: scaleSize(16),
-                      padding: scaleSize(24),
-                      width: '80%',
-                      maxWidth: scaleSize(400),
-                      alignItems: 'center',
-                      elevation: 10,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.25,
-                      shadowRadius: 3.84,
-                    }}
-                  >
-                    <Icon
-                      name="check-circle"
-                      size={scaleSize(64)}
-                      color="#22c55e"
-                      style={{ marginBottom: scaleSize(16) }}
-                    />
-                    <Text
-                      style={{
-                        fontSize: scaleSize(20),
-                        fontWeight: 'bold',
-                        color: '#1f2937',
-                        marginBottom: scaleSize(8),
-                        textAlign: 'center',
-                      }}
-                    >
-                      Question Changed!
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: scaleSize(14),
-                        color: '#6b7280',
-                        textAlign: 'center',
-                        marginBottom: scaleSize(24),
-                      }}
-                    >
-                      A new question has been unlocked for you.
-                    </Text>
-                    <SoundTouchableOpacity
-                      onPress={() => setShowChangeQuestionSuccessModal(false)}
-                      style={{
-                        backgroundColor: '#8b5cf6',
-                        borderRadius: scaleSize(12),
-                        paddingVertical: scaleSize(12),
-                        paddingHorizontal: scaleSize(32),
-                        minWidth: scaleSize(120),
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: 'white',
-                          fontSize: scaleSize(16),
-                          fontWeight: '600',
-                          textAlign: 'center',
-                        }}
-                      >
-                        Continue
-                      </Text>
-                    </SoundTouchableOpacity>
-                  </View>
-                </View>
-              </Modal>
-
-
-              {/* Tap overlay for Free Mode - Only when already answered OR in review mode, positioned above everything to capture taps */}
-              {/* CRITICAL: Show overlay in Free mode when isSubmitted is true OR when in review mode */}
-              {/* CRITICAL: Overlay should NOT block navigation arrows - they have higher z-index */}
-              {
-                (() => {
-                  const mode = routeMode || currentMode || 'free';
-                  const shouldShowOverlay =
-                    mode === 'free' &&
-                    (isFreeModeReviewMode || // Show overlay in review mode to allow tap-to-close
-                      (alreadyAnswered && !showCongratsScreen) || // Only show overlay if modal is not showing
-                      (isSubmitted && !showCongratsScreen) ||
-                      (currentFreeModeQuestion?.answered_at && !showCongratsScreen) ||
-                      (currentFreeModeQuestion?.submitted_at && !showCongratsScreen));
-
-                  // Debug log to check if overlay should render - ALWAYS LOG IN FREE MODE
-                  if (mode === 'free') {
-                    console.log('🔵 [TRIVIA SCREEN OVERLAY] Checking overlay condition:', {
-                      mode,
-                      isFreeModeReviewMode,
-                      alreadyAnswered,
-                      isSubmitted,
-                      answeredAt: currentFreeModeQuestion?.answered_at,
-                      submittedAt: currentFreeModeQuestion?.submitted_at,
-                      shouldShowOverlay,
-                      showCongratsScreen,
-                      questionId: currentFreeModeQuestion?.question_id,
-                    });
-                  }
-
-                  return shouldShowOverlay;
-                })() && (
-                  <TouchableWithoutFeedback
-                    onPress={async () => {
-                      const mode = routeMode || currentMode || 'free';
-
-                      // ALWAYS LOG - This confirms tap is working
-                      console.log(
-                        '🔵🔵🔵 [TRIVIA SCREEN TAP OVERLAY] ========== SCREEN TAPPED =========='
-                      );
-                      console.log('🔵🔵🔵 [TRIVIA SCREEN TAP OVERLAY] Tap detected!', {
-                        mode,
-                        isFreeModeReviewMode,
-                        alreadyAnswered,
-                        isSubmitted,
-                        showCongratsScreen,
-                        freeModeQuestionId: currentFreeModeQuestion?.question_id,
-                        nextQuestionScheduled: nextQuestionScheduled.current,
-                      });
-
-                      // Free mode review mode: Tap to exit review mode (like CongratsScreen tap-to-close)
-                      if (mode === 'free' && isFreeModeReviewMode) {
-                        console.log(
-                          '🟢 [TRIVIA SCREEN TAP OVERLAY] Free mode review mode - Exiting review mode'
-                        );
-                        setIsFreeModeReviewMode(false);
-                        setFreeModeReviewIndex(0);
-                        // Fetch current question to return to normal view
-                        try {
-                          await dispatch(fetchCurrentFreeQuestion()).unwrap();
-                        } catch (e) {
-                          console.error(
-                            '🔴 [TRIVIA SCREEN TAP OVERLAY] Error fetching current question:',
-                            e
-                          );
-                        }
-                        return;
-                      }
-
-                      // Free mode: If completed/all answered, show CongratsScreen on tap
-                      const isCompleted = freeModeStatus?.progress?.completed === true;
-                      const allQuestionsAnswered =
-                        freeModeStatus?.progress?.all_questions_answered === true;
-                      if (mode === 'free' && (isCompleted || allQuestionsAnswered)) {
-                        console.log(
-                          '🟢 [TRIVIA SCREEN TAP OVERLAY] Free mode completed/all answered - showing CongratsScreen',
-                          {
-                            completed: isCompleted,
-                            allQuestionsAnswered,
-                          }
-                        );
-                        userManuallyClosedFreeModeModal.current = false;
-                        setShowCongratsScreen(true);
-                        return;
-                      }
-
-                      // Free mode: Remove tap functionality - modal only shows automatically on screen load
-                      // CRITICAL: Never show modal when navigating with arrows or on tap
-                      // Do nothing - modal only shows on screen load
-                    }}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: scaleSizeFunc(120), // Exclude bottom area where navigation arrows are (80px height + 30px bottom + 10px margin)
-                      zIndex: 100, // Lower than navigation arrows (10000) so arrows are clickable
-                      elevation: 100, // Android elevation - lower than arrows
-                      backgroundColor: 'transparent',
-                      pointerEvents: 'auto', // Always capture taps when overlay is visible
-                    }}
-                  >
-                    <View style={{ flex: 1, backgroundColor: 'transparent' }} />
-                  </TouchableWithoutFeedback>
-                )
-              }
-
-            </View >
-
-            {/* Ad Banner removed from here to prevent layout shifts during transitions */}
-
-            {/* Tap overlay for Bronze/Silver Mode - Show congrats screen when alreadyAnswered - Tap anywhere on screen */}
-            {/* CRITICAL: Show overlay in Bronze/Silver mode when alreadyAnswered to allow tap anywhere to open congrats */}
-            {/* MUST be outside ScrollView to cover entire screen */}
-            {/* CRITICAL: z-index must be ABOVE opacity overlay (97) and ABOVE options container (100) but BELOW CongratsScreen (100) */}
-            {/* Use z-index 99 to be above everything except CongratsScreen */}
-            {
-              (() => {
-                const mode = routeMode || currentMode || 'free';
-                const shouldShowBronzeSilverOverlay =
-                  (mode === 'bronze' || mode === 'silver') &&
-                  alreadyAnswered &&
-                  !showCongratsScreen;
-
-                return shouldShowBronzeSilverOverlay;
-              })() && (
-                <TouchableWithoutFeedback
-                  onPress={() => {
-                    const mode = routeMode || currentMode || 'free';
-                    if ((mode === 'bronze' || mode === 'silver') && alreadyAnswered && !isNavigatingWithArrows.current) {
-                      setShowCongratsScreen(true);
-                    }
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    zIndex: 99, // ABOVE opacity overlay (97) and options container (100) to capture taps, but BELOW CongratsScreen (100)
-                    elevation: 99,
-                    backgroundColor: 'transparent',
-                    pointerEvents: 'auto',
-                  }}
-                >
-                  <View style={{ flex: 1, backgroundColor: 'transparent' }} />
-                </TouchableWithoutFeedback>
-              )
-            }
-
-            {/* Opacity overlay for entire screen when CongratsScreen is visible - Covers everything including ad */}
-            {/* MUST be outside ScrollView to cover ad banner */}
-            {/* CRITICAL: z-index must be BELOW tap overlay (99) and BELOW CongratsScreen (100) so CongratsScreen appears without opacity */}
-            {/* Use blue background tint to match screen background (#1e90ff) - no shadows, just opacity */}
-            {showCongratsScreen && (
-              <View
+                pointerEvents="box-none"
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: 'rgba(30, 144, 255, 0.5)', // Blue tint matching background #1e90ff with 0.5 opacity
-                  zIndex: 97, // BELOW tap overlay (99) and BELOW CongratsScreen (100) so CongratsScreen appears on top without opacity
-                  elevation: 97, // Android elevation - below CongratsScreen
-                  pointerEvents: 'box-none', // Allow taps to pass through to CongratsScreen
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  zIndex: 150, // Lower than marks (200) so marks show first, then lottie
+                  elevation: 150, // Android elevation
+                  backgroundColor: 'transparent',
                 }}
-              />
+              >
+                <LottieView
+                  ref={correctAnimationRef}
+                  source={require('../../../../assets/trivia/Correct Animation.json')}
+                  autoPlay={false}
+                  loop={false}
+                  renderMode="HARDWARE"
+                  hardwareAccelerationAndroid={Platform.OS === 'android'}
+                  cacheStrategy="strong"
+                  cacheComposition={true}
+                  enableMergePathsAndroidForKitKatAndAbove={true}
+                  style={{
+                    width: scaleSize(300),
+                    height: scaleSize(300),
+                  }}
+                  onAnimationFinish={isCancelled => {
+                    // CRITICAL: Only proceed if animation wasn't cancelled and fully completed
+                    // Wait for animation to fully complete before proceeding
+                    logger.debug('Correct Lottie onAnimationFinish', 'TRIVIA', { isCancelled });
+                    if (!isCancelled) {
+                      // Mark animation as no longer playing
+                      isCorrectAnimationPlaying.current = false;
+
+                      // CRITICAL: Keep animation visible - animation frame stays visible
+                      // Call handler immediately since animation has completed
+                      // The handler will manage the timing for hiding and showing CongratsScreen
+                      logger.debug(
+                        'Correct Lottie - Animation completed, calling handleCorrectAnimationEnd',
+                        'TRIVIA'
+                      );
+                      handleCorrectAnimationEnd();
+                    } else {
+                      // Animation was cancelled - mark as not playing
+                      logger.debug('Correct Lottie - Animation was cancelled', 'TRIVIA');
+                      isCorrectAnimationPlaying.current = false;
+                    }
+                  }}
+                  speed={1.0}
+                />
+              </View>
             )}
 
-            {/* Confetti Animation - Rendered OUTSIDE SafeAreaView for full visibility */}
-            {/* Must be at absolute root level to appear on top of all other components */}
-            <Confetti isVisible={showConfetti} onAnimationEnd={handleConfettiAnimationEnd} />
-          </ScrollView>
-
-          {/* Ad Banner - Only in Free Mode - Outside ScrollView for vertical stability */}
-          {(() => {
-            const mode = routeMode || currentMode || 'free';
-            if (mode === 'free' && !showCongratsScreen) {
-              return (
-                <View style={{
-                  width: '100%',
+            {/* Wrong Answer Lottie Animation - Shows when wrong answer is chosen */}
+            {/* CRITICAL: Show marks FIRST, then lottie animation plays on top */}
+            {showWrongAnimation && (
+              <View
+                pointerEvents="box-none"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  justifyContent: 'center',
                   alignItems: 'center',
-                  paddingVertical: scaleSize(10),
+                  zIndex: 150, // Higher than options but marks show first
+                  elevation: 150, // Android elevation
                   backgroundColor: 'transparent',
-                }}>
-                  <AdBanner />
+                }}
+              >
+                <LottieView
+                  ref={wrongAnimationRef}
+                  source={require('../../../../assets/trivia/Wrong answer.json')}
+                  autoPlay={false}
+                  loop={false}
+                  renderMode="HARDWARE"
+                  hardwareAccelerationAndroid={Platform.OS === 'android'}
+                  cacheStrategy="strong"
+                  cacheComposition={true}
+                  enableMergePathsAndroidForKitKatAndAbove={true}
+                  style={{
+                    width: scaleSize(300),
+                    height: scaleSize(300),
+                  }}
+                  onAnimationFinish={isCancelled => {
+                    // CRITICAL: Only proceed if animation wasn't cancelled and fully completed
+                    // Wait for animation to fully complete before proceeding
+                    logger.debug('Wrong Lottie onAnimationFinish', 'TRIVIA', { isCancelled });
+                    if (!isCancelled) {
+                      // Mark animation as no longer playing
+                      isWrongAnimationPlaying.current = false;
+
+                      // CRITICAL: Keep animation visible - animation frame stays visible
+                      // Call handler immediately since animation has completed
+                      // The handler will manage the timing for hiding and showing retry popup/congrats screen
+                      logger.debug(
+                        'Wrong Lottie - Animation completed, calling handleWrongAnimationEnd',
+                        'TRIVIA'
+                      );
+                      handleWrongAnimationEnd();
+                    } else {
+                      // Animation was cancelled - mark as not playing
+                      logger.debug('Wrong Lottie - Animation was cancelled', 'TRIVIA');
+                      isWrongAnimationPlaying.current = false;
+                    }
+                  }}
+                  speed={1.0}
+                />
+              </View>
+            )}
+
+            {/* Lifeline animations removed */}
+
+            {/* Old Confetti Component - Keep for compatibility but won't show anymore */}
+
+            {/* Main content - Removed outer TouchableWithoutFeedback to allow tap overlay to work properly */}
+            {/* Tap handling is now done by dedicated tap overlays outside ScrollView */}
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: scaleSize(100) }}
+              showsVerticalScrollIndicator={(() => {
+                const mode = routeMode || currentMode || 'free';
+                // Hide scrollbar in free mode
+                return mode !== 'free';
+              })()}
+              scrollEnabled={(() => {
+                const mode = routeMode || currentMode || 'free';
+                // Disable scrolling in free mode
+                return mode !== 'free';
+              })()}
+              bounces={false}
+            >
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: 'flex-start',
+                  zIndex: showCongratsScreen ? 0 : 1,
+                  elevation: showCongratsScreen ? 0 : 1,
+                  overflow: 'visible',
+                }}
+              >
+                <Animated.View
+                  style={{
+                    transform: [{ translateX: headerAnim }],
+                    alignItems: 'center',
+                    marginBottom: scaleSize(2),
+                  }}
+                >
+                  <GradientText text="Trivia Challenge" />
+                </Animated.View>
+
+                <Animated.View
+                  style={{
+                    transform: [{ translateX: questionAnim }],
+                    marginHorizontal: scaleSize(4),
+                    marginBottom: scaleSize(0),
+                    overflow: 'visible', // Allow question card to display fully
+                  }}
+                >
+                  <SoundTouchableOpacity
+                    activeOpacity={alreadyAnswered ? 0.8 : 1}
+                    onPress={() => {
+                      const mode = routeMode || currentMode || 'free';
+                      if (mode !== 'free' && alreadyAnswered && !isNavigatingWithArrows.current) {
+                        // Don't show modal during arrow navigation
+                        setShowCongratsScreen(true);
+                      }
+                    }}
+                    disabled={(routeMode || currentMode || 'free') === 'free' || !alreadyAnswered}
+                    style={{ overflow: 'visible' }} // Allow question card to display fully
+                  >
+                    <ImageBackground
+                      source={require('../../../../assets/trivia/questionCard.png')}
+                      style={{
+                        borderRadius: scaleSize(16),
+                        overflow: 'hidden',
+                        width: '100%',
+                        aspectRatio: 320 / 300,
+                        alignSelf: 'center',
+                        justifyContent: 'center',
+                        top: scaleSize(-60),
+                      }}
+                      resizeMode="contain"
+                    >
+                      {/* Tier-specific Badge for Bronze and Silver levels */}
+                      {(currentMode === 'bronze' || currentMode === 'silver') && (
+                        <Image
+                          source={
+                            currentMode === 'bronze'
+                              ? require('../../../../assets/common/bronze.png')
+                              : require('../../../../assets/common/silver.png')
+                          }
+                          style={{
+                            position: 'absolute',
+                            width: scaleSize(48),
+                            height: scaleSize(48),
+                            top: scaleSize(60), // Set to 30px
+                            right: scaleSize(-2), // Moved right 10px from -2 (so -2 + 10 = 8)
+                            zIndex: 10,
+                          }}
+                          resizeMode="contain"
+                        />
+                      )}
+                      <View
+                        style={{
+                          position: 'absolute',
+                          top: '25%',
+                          left: '18%',
+                          right: '15%',
+                          bottom: '25%',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <View style={{ overflow: 'hidden', width: '100%', alignItems: 'center' }}>
+                          <Animated.Text
+                            style={[
+                              typography.h4,
+                              {
+                                fontSize: scaleSize(18),
+                                color: 'white',
+                                textAlign: 'center',
+                                lineHeight: scaleSize(24),
+                                paddingHorizontal: scaleSize(10),
+                                flexShrink: 1,
+                                opacity: questionTextOpacity,
+                                marginBottom: scaleSize(8),
+                                flexWrap: 'wrap',
+                              },
+                            ]}
+                            adjustsFontSizeToFit={true}
+                            minimumFontScale={0.7}
+                            numberOfLines={0}
+                          >
+                            {questionForDisplay?.text ||
+                              question?.text ||
+                              apiQuestion?.question ||
+                              ''}
+                          </Animated.Text>
+
+                          {/* Hint display with lightbulb icon - shown only after taking hint */}
+                          {hintTooltipText && (
+                            <Animated.View
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginTop: scaleSize(2), // Moved up 6px (from 8 to 2) to avoid overlapping with prize pool text
+                                paddingHorizontal: scaleSize(12),
+                                paddingVertical: scaleSize(8),
+                                backgroundColor: '#FFD700',
+                                borderRadius: scaleSize(12),
+                                opacity: questionTextOpacity,
+                              }}
+                            >
+                              <Icon
+                                name="lightbulb-on-outline"
+                                size={scaleSize(18)}
+                                color="#000000"
+                                style={{ marginRight: scaleSize(8) }}
+                              />
+                              <Text
+                                style={[
+                                  typography.bodySmall,
+                                  {
+                                    color: '#000000',
+                                    fontSize: scaleSize(14),
+                                    lineHeight: scaleSize(20),
+                                    textAlign: 'center',
+                                    flex: 1,
+                                  },
+                                ]}
+                                numberOfLines={2}
+                              >
+                                {hintTooltipText}
+                              </Text>
+                            </Animated.View>
+                          )}
+                        </View>
+                      </View>
+                    </ImageBackground>
+                  </SoundTouchableOpacity>
+                </Animated.View>
+
+                <View
+                  style={{
+                    marginBottom: scaleSize(0),
+                    paddingHorizontal: scaleSize(0),
+                    marginTop: scaleSize(-110), // Moved down by 20px (from -130 to -110) to give space for yellow hint tooltip above green prize pool text
+                    zIndex: showInfoTooltip ? 50 : 100, // Lower z-index when tooltip is visible so overlay covers it
+                    elevation: showInfoTooltip ? 50 : 100, // Android elevation
+                  }}
+                >
+                  <View
+                    style={{
+                      padding: scaleSize(10),
+                      alignItems: 'center',
+                      marginTop: scaleSize(0), // No gap above options
+                      justifyContent: 'center',
+                      zIndex: showInfoTooltip ? 50 : 100, // Lower z-index when tooltip is visible so overlay covers it
+                      elevation: showInfoTooltip ? 50 : 100, // Android elevation
+                    }}
+                  >
+                    {(() => {
+                      const optionsSource =
+                        questionWithDisabledOptions || questionForDisplay || question;
+                      const options = optionsSource?.options;
+                      logger.debug('Rendering Options', 'TRIVIA', {
+                        hasQuestionWithDisabled: !!questionWithDisabledOptions,
+                        hasQuestionForDisplay: !!questionForDisplay,
+                        hasQuestion: !!question,
+                        optionsCount: options?.length || 0,
+                        selectedAnswer,
+                      });
+
+                      if (!options || options.length === 0) {
+                        logger.warn('NO OPTIONS TO RENDER!', 'TRIVIA');
+                        return null;
+                      }
+
+                      return options.map((option, index) => {
+                        // Use pre-defined animation hooks based on index
+                        const getOptionAnimation = (index: number) => {
+                          switch (index) {
+                            case 0:
+                              return option1Animation;
+                            case 1:
+                              return option2Animation;
+                            case 2:
+                              return option3Animation;
+                            case 3:
+                              return option4Animation;
+                            default:
+                              return option1Animation;
+                          }
+                        };
+
+                        const optionAnimation = getOptionAnimation(index);
+
+                        // CENTRALIZED CORRECT ANSWER LOGIC:
+                        // Ensure we always have the best source of truth for the correct answer
+                        const resolvedCorrectAnswer = isFreeModeReviewMode
+                          ? derivedReviewState.apiCorrectAnswer || ''
+                          : (
+                            // 1. Submission Result (Freshest)
+                            submissionResult?.correct_answer ||
+                            // 2. Current Question Correct Answer (Redux/API)
+                            (currentMode === 'bronze' ? currentBronzeModeQuestion?.correct_answer :
+                              currentMode === 'silver' ? currentSilverModeQuestion?.correct_answer :
+                                currentFreeModeQuestion?.correct_answer) ||
+                            // 3. API Question Fallback (State)
+                            apiCorrectAnswer ||
+                            // 4. Raw API Question Fallback (Selector)
+                            apiQuestion?.correct_answer ||
+                            ''
+                          );
+
+                        return (
+                          <Animated.View
+                            key={option.id}
+                            style={{
+                              transform: [
+                                { translateX: optionsAnim[index] || new Animated.Value(0) },
+                              ],
+                              width: '100%',
+                              alignItems: 'center',
+                              marginBottom: scaleSize(4), // 4px gap between options
+                            }}
+                          >
+                            <Animated.View style={optionAnimation.animatedStyle}>
+                              <OptionButton
+                                option={option}
+                                optionIndex={index}
+                                isSelected={
+                                  selectedAnswer?.toLowerCase() === option.id?.toLowerCase()
+                                }
+                                // CRITICAL: Only show correct/wrong AFTER submission completes - prevent race condition
+                                // Use submissionResult to ensure we only show marks after actual API response
+                                isSubmitted={
+                                  (localIsSubmitted || isSubmitted) &&
+                                  (!!submissionResult || alreadyAnswered || (isFreeModeReviewMode && !!derivedReviewState.previousAnswer))
+                                }
+                                correctAnswer={resolvedCorrectAnswer}
+                                onPress={() => handleOptionSelect(option.id)}
+                                hasAnySelection={!!(selectedAnswer || (isFreeModeReviewMode && derivedReviewState.previousAnswer))}
+                                animatedStyle={optionAnimation.animatedStyle}
+                                onPressIn={optionAnimation.animatePress}
+                                onPressOut={optionAnimation.animateRelease}
+                                previousAnswer={isFreeModeReviewMode ? derivedReviewState.previousAnswer : previousAnswer}
+                                previousAnswerCorrect={isFreeModeReviewMode ? derivedReviewState.previousAnswerCorrect : previousAnswerCorrect}
+                                // CRITICAL: Only set alreadyAnswered if question was actually answered from API, not just submitted
+                                alreadyAnswered={
+                                  (alreadyAnswered && !localIsSubmitted) || // Already answered from API, not just submitted
+                                  (isFreeModeReviewMode && !!derivedReviewState.previousAnswer)
+                                }
+                              />
+                            </Animated.View>
+                          </Animated.View>
+                        );
+                      });
+                    })()}
+
+                    {/* Manual Submit Button */}
+                    {!isFreeModeReviewMode && !alreadyAnswered && !isSubmitted && (
+                      <Animated.View
+                        style={{ width: '100%', marginTop: scaleSize(20), alignItems: 'center' }}
+                      >
+                        <SoundTouchableOpacity
+                          onPress={() => handleSubmit()}
+                          disabled={!selectedAnswer}
+                          style={{
+                            width: '80%',
+                            height: scaleSize(50),
+                            borderRadius: scaleSize(25),
+                            overflow: 'hidden',
+                            opacity: selectedAnswer ? 1 : 0.5,
+                          }}
+                        >
+                          <ImageBackground
+                            source={require('../../../../assets/trivia/submitBtn.png')}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                            }}
+                            resizeMode="stretch"
+                          >
+                            <Text
+                              style={{
+                                color: 'white',
+                                fontSize: scaleSize(18),
+                                fontWeight: 'bold',
+                                fontFamily: 'Baloo2',
+                              }}
+                            >
+                              SUBMIT ANSWER
+                            </Text>
+                          </ImageBackground>
+                        </SoundTouchableOpacity>
+                      </Animated.View>
+                    )}
+                    {/* Free Mode Navigation Arrows - Moved inside options container, below options */}
+                    {(() => {
+                      const mode = routeMode || currentMode || 'free';
+
+                      // Only show arrows if:
+                      // 1. Mode is free
+                      // 2. Questions are loaded
+                      // 3. User has COMPLETED (completed === true OR all_questions_answered === true)
+                      const isCompleted = freeModeStatus?.progress?.completed === true;
+                      const allQuestionsAnswered = freeModeStatus?.progress?.all_questions_answered === true;
+                      const shouldShowArrows =
+                        mode === 'free' &&
+                        freeModeQuestions &&
+                        freeModeQuestions.length > 0 &&
+                        (isCompleted || allQuestionsAnswered) &&
+                        !showCongratsScreen; // CRITICAL: Hide when CongratsScreen is shown
+
+                      if (!shouldShowArrows) {
+                        return null;
+                      }
+
+                      // For navigation arrows, we don't need review mode logic
+                      // Just show arrows to navigate through questions
+                      const sortedQuestions = [...freeModeQuestions].sort(
+                        (a: any, b: any) => (a?.question_order ?? 0) - (b?.question_order ?? 0)
+                      );
+                      const currentQuestionId = currentFreeModeQuestion?.question_id;
+                      const currentIndex = sortedQuestions.findIndex(
+                        (q: any) => q.question_id === currentQuestionId
+                      );
+
+                      const isPrevDisabled = currentIndex <= 0; // Disable if at first question
+                      const isNextDisabled = currentIndex >= sortedQuestions.length - 1; // Disable if at last question
+
+                      return (
+                        <View
+                          style={{
+                            width: '100%',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            paddingHorizontal: scaleSize(20),
+                            marginTop: scaleSize(20), // Space above navigation arrows
+                            marginBottom: scaleSize(10), // Add 10px spacing below navigation section
+                            zIndex: 10000,
+                            elevation: 10000,
+                          }}
+                        >
+                          <SoundTouchableOpacity
+                            onPress={() => {
+                              console.log('🔵 [NAVIGATION] Prev button clicked');
+                              handleFreeModeReviewPrev();
+                            }}
+                            disabled={isPrevDisabled}
+                            activeOpacity={0.9}
+                            style={{
+                              opacity: isPrevDisabled ? 0.4 : 1,
+                              padding: scaleSize(4),
+                              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                              borderRadius: scaleSize(20),
+                              zIndex: 10001,
+                              elevation: 10001,
+                            }}
+                          >
+                            <Icon name="chevron-left" size={scaleSize(30)} color="#ffffff" />
+                          </SoundTouchableOpacity>
+
+                          <View
+                            style={{
+                              alignItems: 'center',
+                              flex: 1,
+                              padding: scaleSize(8),
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: '#ffffff',
+                                fontFamily: 'Baloo2',
+                                fontSize: scaleSize(16),
+                                fontWeight: 'bold',
+                                textShadowColor: 'rgba(0, 0, 0, 0.75)',
+                                textShadowOffset: { width: 0, height: 1 },
+                                textShadowRadius: 3,
+                              }}
+                            >
+                              Navigate Questions ({currentIndex + 1}/{sortedQuestions.length})
+                            </Text>
+                          </View>
+
+                          <SoundTouchableOpacity
+                            onPress={() => {
+                              console.log('🔵 [NAVIGATION] Next button clicked');
+                              handleFreeModeReviewNext();
+                            }}
+                            disabled={isNextDisabled}
+                            activeOpacity={0.9}
+                            style={{
+                              opacity: isNextDisabled ? 0.4 : 1,
+                              padding: scaleSize(4),
+                              backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                              borderRadius: scaleSize(20),
+                              zIndex: 10001,
+                              elevation: 10001,
+                            }}
+                          >
+                            <Icon name="chevron-right" size={scaleSize(30)} color="#ffffff" />
+                          </SoundTouchableOpacity>
+                        </View>
+                      );
+                    })()}
+                  </View>
                 </View>
-              );
+
+              </View>
+            </ScrollView>
+
+            {/* Ad Banner - Only in Free Mode - Outside ScrollView for vertical stability */}
+            {(() => {
+              const mode = routeMode || currentMode || 'free';
+              if (mode === 'free' && !showCongratsScreen) {
+                return (
+                  <View style={{
+                    width: '100%',
+                    alignItems: 'center',
+                    paddingVertical: scaleSize(10),
+                    backgroundColor: 'transparent',
+                  }}>
+                    <AdBanner />
+                  </View>
+                );
+              }
+              return null;
+            })()}
+          </View>
+        </SafeScreenWrapper>
+
+        {/* Congrats Modal Popup - For all modes including Free mode completion */}
+        <CongratsScreen
+          visible={showCongratsScreen}
+          onClose={() => {
+            const mode = routeMode || currentMode || 'free';
+            if (mode === 'free') {
+              handleFreeModeCompletionClose();
+            } else {
+              handleCongratsClose();
             }
-            return null;
-          })()}
-        </View>
-      </SafeScreenWrapper>
+          }}
+          selectedAnswer={selectedAnswer || ''}
+          correctAnswer={
+            apiCorrectAnswer ||
+            questionForDisplay?.correctAnswer ||
+            question?.correctAnswer ||
+            ''
+          }
+          question={(questionForDisplay || question) as Question}
+          alreadyAnswered={
+            alreadyAnswered || Boolean(error && error.includes('already answered'))
+          }
+          onExtraChance={undefined} // Retry logic removed
+          extraChanceCost={0}
+          userGems={realGems}
+          freeModeStatus={routeMode === 'free' ? freeModeStatus : undefined} // Pass free mode status for score display
+          correctAnswersCount={freeModeStatus?.progress?.correct_answers || 0}
+        />
+
+        {/* Background opacity overlay when info tooltip is visible */}
+        {
+          showInfoTooltip && (
+            <SoundTouchableOpacity
+              activeOpacity={1}
+              onPress={handleInfoPress}
+              style={{
+                ...StyleSheet.absoluteFillObject,
+                backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                zIndex: 999,
+                elevation: 999,
+              }}
+            >
+              <View />
+            </SoundTouchableOpacity>
+          )
+        }
+
+        <Tooltip
+          isVisible={showInfoTooltip}
+          onClose={handleInfoPress}
+          anchorPosition={tooltipAnchor}
+        />
+      </View >
     </ScreenErrorBoundary >
   );
 };

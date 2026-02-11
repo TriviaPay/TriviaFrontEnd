@@ -308,7 +308,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 ]}
               >
                 <Image
-                  source={require('../../../assets/closeIcon.png')}
+                  source={require('../../../assets/common/closeIcon.png')}
                   style={styles.closeIcon}
                   resizeMode="contain"
                 />
