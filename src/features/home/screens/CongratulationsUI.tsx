@@ -24,14 +24,8 @@ const CongratulationsUI: React.FC = React.memo(() => {
   const { animatedStyle, animatePress, animateRelease } = useButtonAnimation();
   const { getResponsiveFontSize } = useStandardResponsive();
 
-  // Get profile data from Redux
-  const profileState = useSelector((state: RootState) => state.profile);
-  const profileData = profileState?.profile;
-
-  // Get recent draw earnings from profile data
-  const recentDrawEarnings = useMemo(() => {
-    return profileData?.recent_draw_earnings ?? 0;
-  }, [profileData?.recent_draw_earnings]);
+  // Get daily coins from timer state (draw/next response) with safe fallback
+  const dailyTriviaCoins = useSelector((state: RootState) => (state as any).timer?.dailyTriviaCoins || 0);
 
   const cardWidth = scaleSize(350);
   const cardHeight = cardWidth / 1.3;
@@ -129,7 +123,7 @@ const CongratulationsUI: React.FC = React.memo(() => {
         </View>
 
         {/* Recent Draw Earnings - Display at bottom */}
-        {recentDrawEarnings !== undefined && recentDrawEarnings !== null && (
+        {dailyTriviaCoins !== undefined && dailyTriviaCoins !== null && (
           <View
             style={{
               position: 'absolute',
@@ -140,17 +134,6 @@ const CongratulationsUI: React.FC = React.memo(() => {
               justifyContent: 'center',
             }}
           >
-            <Text
-              style={{
-                fontSize: getResponsiveFontSize(scaleSize(14)),
-                color: '#FFFFFF',
-                fontWeight: '600',
-                marginBottom: scaleSize(4),
-                opacity: 0.9,
-              }}
-            >
-              You Just Won
-            </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
               <Image
                 source={require('../../../../assets/icons/Tpcoin.png')}
@@ -169,7 +152,7 @@ const CongratulationsUI: React.FC = React.memo(() => {
                   textAlign: 'center',
                 }}
               >
-                {recentDrawEarnings.toLocaleString()}
+                {(dailyTriviaCoins || 0).toLocaleString()}
               </Text>
             </View>
           </View>

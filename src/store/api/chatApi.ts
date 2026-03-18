@@ -53,7 +53,7 @@ export const chatApi = baseApi.injectEndpoints({
         try {
           await cacheDataLoaded;
 
-          const channelName = `private-conversation.${conversationId}`;
+          const channelName = `private-conversation-${conversationId}`;
           await subscribeToChannel(channelName, event => {
             const { eventName, data } = event;
 

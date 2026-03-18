@@ -7,14 +7,13 @@ import {
   TouchableOpacity,
   FlatList,
   TextInput,
-  SafeAreaView,
   Platform,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchCountries as fetchCountriesAction } from '../../store/countrySlice';
 import { getOptimizedFlatListProps } from '../../utils/flatListOptimization';
-import { apiService } from '../../services/apiService';
-import { logger } from '../../lib/utils/logger';
 
 interface CountryPickerProps {
   visible: boolean;
@@ -24,57 +23,47 @@ interface CountryPickerProps {
 }
 
 const CountryPicker: React.FC<CountryPickerProps> = React.memo(
-  ({ visible, onClose, onSelect, selectedCountry }) => {
+  ({ visible, onClose, onSelect }) => {
+    const dispatch = useDispatch();
     const [searchQuery, setSearchQuery] = useState('');
-    const [countries, setCountries] = useState<string[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
-    // Fetch countries from API when component mounts or becomes visible
+    // Consume countries from Redux state (pre-fetched by prefetchService)
+    const { list: countries, loading, error: reduxError } = useSelector((state: any) => state.countries);
+    const [localError, setLocalError] = useState<string | null>(null);
+
+    const error = reduxError || localError;
+
+    // Fetch countries if list is empty and component becomes visible
+    // This is a fallback in case pre-fetch didn't complete or failed
     useEffect(() => {
-      if (visible && countries.length === 0) {
-        fetchCountries();
+      if (visible && countries.length === 0 && !loading) {
+        dispatch(fetchCountriesAction() as any);
       }
-    }, [visible]);
+    }, [visible, countries.length, loading, dispatch]);
 
-    const fetchCountries = useCallback(async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await apiService.getCountries();
+    const handleSelect = useCallback(
+      (country: string | any) => {
+        // Handle both string and object formats if necessary, though list is currently any[]
+        const countryName = typeof country === 'string' ? country : country.name || country;
+        onSelect(countryName);
+        onClose();
+      },
+      [onSelect, onClose]
+    );
 
-        if (result.success && result.data) {
-          const countriesList = result.data.countries || [];
-
-          if (Array.isArray(countriesList) && countriesList.length > 0) {
-            setCountries(countriesList);
-          } else {
-            setError('No countries available');
-          }
-        } else {
-          setError(result.error || 'Failed to load countries');
-        }
-      } catch (err) {
-        setError('Failed to load countries');
-      } finally {
-        setLoading(false);
-      }
-    }, []);
+    const handleRetry = useCallback(() => {
+      setLocalError(null);
+      dispatch(fetchCountriesAction() as any);
+    }, [dispatch]);
 
     const filteredCountries = useMemo(() => {
       if (!searchQuery.trim()) {
         return countries;
       }
-      return countries.filter(country => country.toLowerCase().includes(searchQuery.toLowerCase()));
+      return countries.filter((country: any) =>
+        country.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     }, [searchQuery, countries]);
-
-    const handleSelect = useCallback(
-      (country: string) => {
-        onSelect(country);
-        onClose();
-      },
-      [onSelect, onClose]
-    );
 
     const handleSearchChange = useCallback((text: string) => {
       setSearchQuery(text);
@@ -131,15 +120,15 @@ const CountryPicker: React.FC<CountryPickerProps> = React.memo(
             ) : error ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>{error}</Text>
-                <TouchableOpacity onPress={fetchCountries} style={styles.retryButton}>
+                <TouchableOpacity onPress={handleRetry} style={styles.retryButton}>
                   <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <FlatList
                 key={`countries-${countries.length}`}
-                data={filteredCountries}
-                keyExtractor={item => item}
+                data={filteredCountries as string[]}
+                keyExtractor={(item: string) => item}
                 extraData={countries.length}
                 {...getOptimizedFlatListProps(50, {
                   initialNumToRender: 15,

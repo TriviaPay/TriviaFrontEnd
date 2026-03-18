@@ -7,6 +7,7 @@
  */
 
 import { keychainStorage } from './keychainStorage';
+import { authService } from './authService';
 import { logger } from '../lib/utils/logger';
 import * as Sentry from '@sentry/react-native';
 
@@ -31,6 +32,12 @@ export interface VerifyOTPResponse {
 export interface BindPasswordResponse {
   success: boolean;
   user?: any;
+  error?: string;
+  message?: string;
+}
+
+export interface ResetPasswordResponse {
+  success: boolean;
   error?: string;
   message?: string;
 }
@@ -114,12 +121,10 @@ class DescopeAuthService {
           logger.debug('Refresh Token received', 'AUTH', { tokenLength: refreshToken.length });
         }
 
-        // Store tokens securely using keychain
+        // Store tokens securely using authService (to ensure cache sync and clear stale tokens)
         if (sessionToken) {
-          await keychainStorage.storeAccessToken(sessionToken);
-        }
-        if (refreshToken) {
-          await keychainStorage.storeRefreshToken(refreshToken);
+          await authService.storeTokens(sessionToken, refreshToken);
+          logger.debug('Tokens synchronized with authService', 'AUTH');
         }
 
         return {
@@ -217,6 +222,66 @@ class DescopeAuthService {
   }
 
   /**
+   * Reset password - Step 1: Send reset OTP (using Descope SDK)
+   * This method should be called with the descope instance from useDescope hook
+   */
+  /**
+   * Reset password - Step 1: Send reset OTP (using Descope SDK)
+   * This method should be called with the descope instance from useDescope hook
+   * @description Uses OTP instead of password.reset to match signup flow
+   */
+  async forgotPassword(email: string, descope: any): Promise<ResetPasswordResponse> {
+    try {
+      // Use signupOrIn to ensure we get a session even if it's a "forgot password" flow
+      // This allows us to use the session to bind a new password later
+      const response = await descope.otp.signUpOrIn.email(email, {
+        redirectUrl: 'triviapay://callback',
+      });
+
+      if (response.ok) {
+        return {
+          success: true,
+          message: 'Verification code sent to your email',
+        };
+      } else {
+        logger.error('Forgot password OTP send failed', 'AUTH', response.error);
+        return {
+          success: false,
+          error: response.error?.errorMessage || response.error?.message || 'Failed to send reset code',
+          message: response.error?.errorMessage || response.error?.message || 'Failed to send reset code',
+        };
+      }
+    } catch (error: any) {
+      logger.error('Forgot password OTP send error', 'AUTH', error);
+      return {
+        success: false,
+        error: error.message,
+        message: error.message,
+      };
+    }
+  }
+
+  /**
+   * Update password after OTP verification (using Descope SDK)
+   * This method should be called with the descope instance from useDescope hook
+   */
+  /**
+   * Update password - Not used in the OTP -> bindPassword flow
+   * Keeping for reference but logic now resides in bindPassword API call
+   */
+  async updatePassword(
+    email: string,
+    code: string,
+    newPassword: string,
+    descope: any
+  ): Promise<ResetPasswordResponse> {
+    return {
+      success: false,
+      error: 'Method deprecated. Use verifyOTP then bindPassword API.',
+    };
+  }
+
+  /**
    * Login with password (using Descope SDK)
    * This method should be called with the descope instance from useDescope hook
    */
@@ -270,12 +335,10 @@ class DescopeAuthService {
           }
         }
 
-        // Store tokens securely
+        // Store tokens securely using authService (to ensure cache sync)
         if (sessionToken) {
-          await keychainStorage.storeAccessToken(sessionToken);
-        }
-        if (refreshToken) {
-          await keychainStorage.storeRefreshToken(refreshToken);
+          await authService.storeTokens(sessionToken, refreshToken);
+          logger.debug('Tokens synchronized with authService during password login', 'AUTH');
         }
 
         return {

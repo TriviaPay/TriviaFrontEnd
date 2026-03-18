@@ -1,4 +1,5 @@
 import { baseApi } from './baseApi';
+import { setUserBalance } from '../slices/shopSlice';
 
 /**
  * Daily Login API Response Types
@@ -53,7 +54,17 @@ export const dailyLoginApi = baseApi.injectEndpoints({
         method: 'POST',
         body: {},
       }),
-      invalidatesTags: ['DailyLogin', 'Wallet', 'WalletBalance'], // Invalidate daily login status and wallet balance
+      invalidatesTags: ['DailyLogin', 'Wallet', 'WalletBalance', 'Profile'],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (typeof data?.total_gems === 'number') {
+            dispatch(setUserBalance({ gems: data.total_gems }));
+          }
+        } catch {
+          // Error handled by component
+        }
+      },
     }),
   }),
 });

@@ -70,7 +70,7 @@ class ApiService {
   private readonly DRAW_CACHE_DURATION = 60000; // 60 seconds cache for draw data
   private activeRequests: Map<string, Promise<any>> = new Map();
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): ApiService {
     if (!ApiService.instance) {

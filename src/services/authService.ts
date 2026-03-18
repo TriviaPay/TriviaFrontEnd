@@ -89,7 +89,7 @@ class AuthService {
   private refreshTimer: NodeJS.Timeout | null = null;
   private readonly REFRESH_THRESHOLD = 45 * 1000; // 45 seconds before expiry (reduced from 2 minutes)
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): AuthService {
     if (!AuthService.instance) {
@@ -453,8 +453,10 @@ class AuthService {
   async setSessionToken(token: string): Promise<void> {
     try {
       await keychainStorage.storeAccessToken(token);
-      // Clear cache when token is updated
+      // CRITICAL: Clear all caches when token is updated to prevent stale data
       this.tokenCache = null;
+      this.clearCaches();
+      logger.debug('Session token updated and caches cleared', 'AUTH');
     } catch (error) {
       logger.error('Failed to store session token', 'AUTH', error);
     }
@@ -935,7 +937,7 @@ class AuthService {
 
             return newToken;
           }
-        } catch (error) {}
+        } catch (error) { }
       }
 
       // Final fallback: Backend API refresh

@@ -654,6 +654,7 @@ const UpdatesScreen: React.FC = () => {
   const [isProfileModalVisible, setIsProfileModalVisible] = useState<boolean>(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
+  const [isInitialRenderDone, setIsInitialRenderDone] = useState<boolean>(false);
 
   // Refs for cleanup and preventing infinite loops
   const cardTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -700,6 +701,9 @@ const UpdatesScreen: React.FC = () => {
       return left.length === 0 || (left[0]?.id === right[0]?.id && left.length === right.length);
     }
   );
+
+  // Get daily coins from timer state to determine if Congratulations card should be shown
+  const dailyTriviaCoins = useSelector((state: any) => state.timer?.dailyTriviaCoins || 0);
 
   // Responsive layout calculations - use responsive hook instead of hardcoded Dimensions.get()
   const { width: screenWidth, height: screenHeight } = useStandardResponsive();
@@ -992,12 +996,10 @@ const UpdatesScreen: React.FC = () => {
   // This prevents UpdatesScreen from re-rendering when on other tabs and during initial mount
   useEffect(() => {
     // Mark initial render as complete after a short delay
-    if (!hasInitialRenderCompleted.current) {
-      const timer = setTimeout(() => {
-        hasInitialRenderCompleted.current = true;
-      }, 2000); // Wait 2 seconds after mount before starting timer
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      setIsInitialRenderDone(true);
+    }, 2000); // Wait 2 seconds after mount before starting timer
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -1008,7 +1010,7 @@ const UpdatesScreen: React.FC = () => {
     }
 
     // CRITICAL: Only start timer if screen is focused AND initial render is complete
-    if (!isFocused || !hasInitialRenderCompleted.current) {
+    if (!isFocused || !isInitialRenderDone) {
       if (!isFocused) {
         if (__DEV__) {
           logger.debug('UpdatesScreen: Card rotation paused (screen not focused)', 'PERF');
@@ -1029,10 +1031,9 @@ const UpdatesScreen: React.FC = () => {
       // CRITICAL: Double-check focus AND mounted state before updating (prevents updates when not focused)
       // Use ref to check focus to avoid closure issues
       if (isMounted && isFocusedRef.current) {
-        // Calculate next index using ref (avoids closure issues)
+        // Update card index - no skipping
         const nextIndex = (currentCardIndexRef.current + 1) % 3;
         currentCardIndexRef.current = nextIndex;
-
         // Batch both state updates - React 18+ will batch these automatically
         setCurrentCardIndex(nextIndex);
         setShowSubscriptionCard(nextIndex === 0);
@@ -1049,7 +1050,7 @@ const UpdatesScreen: React.FC = () => {
         logger.debug('UpdatesScreen: Card rotation stopped', 'PERF');
       }
     };
-  }, [isFocused]); // Re-run when focus changes
+  }, [isFocused, isInitialRenderDone, dailyTriviaCoins]); // Re-run when focus, render status or coins change
 
   // CRITICAL: Use static style instead of useMemo to reduce initial render cost
   const stableLayoutStyle = {
@@ -1165,8 +1166,7 @@ const UpdatesScreen: React.FC = () => {
               isDarkMode={isDarkMode}
             />
 
-            {/* Render GlobalLoader component directly in the screen as well to ensure visibility */}
-            <GlobalLoader />
+            {/* GlobalLoader is handled at the Root level (App.tsx) */}
           </View>
         </View>
       </SafeAreaView>

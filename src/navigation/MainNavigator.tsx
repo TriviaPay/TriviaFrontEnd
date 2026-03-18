@@ -11,13 +11,19 @@ import {
   GestureResponderEvent,
   PanResponderGestureState,
   ActivityIndicator,
+  Animated,
+  Easing,
+  useWindowDimensions,
 } from 'react-native';
+import { DIMENSIONS } from '../constants/uiConstants';
 import LinearGradient from 'react-native-linear-gradient';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens, enableFreeze } from 'react-native-screens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, shallowEqual } from 'react-redux';
+import { RootState } from '../store';
+import scaleSize from '../utils/scaleSize';
 
 // CRITICAL: Enable screens for better navigation performance
 enableScreens(true);
@@ -25,23 +31,11 @@ enableFreeze(false);
 
 import { useNavigation } from '@react-navigation/native';
 import type { CompositeMainNavigationProp } from './types';
-// Lazy load large screens to improve initial app startup time
-// React Native doesn't support React.lazy() the same way as web, but we can use dynamic imports
-import { createLazyScreen, withLazyScreen } from '../utils/lazyScreenLoader';
-
-// Lazy load large screens (4K+ lines) - only load when accessed
-const UpdatesScreen = withLazyScreen(
-  createLazyScreen(() => import('../features/home/screens/UpdatesScreen'))
-);
-const LeaderboardScreen = withLazyScreen(
-  createLazyScreen(() => import('../features/leaderboard/screens/LeaderboardScreen'))
-);
-const WalletScreen = withLazyScreen(
-  createLazyScreen(() => import('../features/wallet/screens/WalletScreen'))
-);
-const FreeTriviaScreen = withLazyScreen(
-  createLazyScreen(() => import('../features/trivia/screens/FreeTriviaScreen'))
-);
+// Regular imports for screens
+import UpdatesScreen from '../features/home/screens/UpdatesScreen';
+import LeaderboardScreen from '../features/leaderboard/screens/LeaderboardScreen';
+import WalletScreen from '../features/wallet/screens/WalletScreen';
+import FreeTriviaScreen from '../features/trivia/screens/FreeTriviaScreen';
 // Regular imports for smaller screens (load immediately)
 import ProfileScreen from '../features/profile/screens/ProfileScreen';
 import ChatsScreen from '../features/chat/screens/ChatsScreen';
@@ -52,6 +46,7 @@ import StoryViewerScreen from '../features/chat/screens/StoryViewerScreen';
 import TriviaScreen from '../features/trivia/screens/TriviaScreen';
 import BronzeTriviaScreen from '../features/trivia/screens/BronzeTriviaScreen';
 import SilverTriviaScreen from '../features/trivia/screens/SilverTriviaScreen';
+import { KeyboardStickyView, useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import TriviaSelectionScreen from '../features/trivia/screens/TriviaSelectionScreen';
 // WinnersScreen removed
 import ShopScreen from '../features/shop/screens/ShopScreen';
@@ -70,7 +65,7 @@ const UpdatesStack = createNativeStackNavigator();
 const MainStack = createNativeStackNavigator();
 
 // Fixed constants
-const TAB_BAR_HEIGHT = 60;
+export const TAB_BAR_HEIGHT = DIMENSIONS.TAB_BAR_HEIGHT;
 
 // Memoized stack navigators
 const UpdatesStackNavigator = React.memo(() => {
@@ -110,13 +105,6 @@ const ChatStackNavigator = React.memo(() => {
         component={ChatsScreen}
         options={{ lazy: false }} // Preload
       />
-      <ChatStack.Screen
-        name="ChatDetail"
-        component={ChatDetailScreen}
-        options={{ lazy: true }} // Lazy load detail screens
-      />
-      <ChatStack.Screen name="GroupInfo" component={GroupInfoScreen} options={{ lazy: true }} />
-      <ChatStack.Screen name="StoryViewer" component={StoryViewerScreen} options={{ lazy: true }} />
     </ChatStack.Navigator>
   );
 });
@@ -180,20 +168,133 @@ const SwipeableScreen = React.memo(
   }
 );
 
+// Animated Tab Item Component
+const TabItem = React.memo(({ isActive, icon, label, onPress, onPressIn, chatCount }: any) => {
+  const animatedValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(animatedValue, {
+      toValue: isActive ? 1 : 0,
+      friction: 8,
+      tension: 50,
+      useNativeDriver: true,
+    }).start();
+  }, [isActive]);
+
+  const translateY = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -scaleSize(6)],
+  });
+
+  const labelOpacity = animatedValue.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 0, 1],
+  });
+
+  const labelTranslateY = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [10, 0],
+  });
+
+  const iconScale = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.1],
+  });
+
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      activeOpacity={0.8}
+      onPressIn={onPressIn}
+      onPress={onPress}
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: TAB_BAR_HEIGHT,
+      }}
+    >
+      <Animated.View
+        style={{
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: [{ translateY }, { scale: iconScale }],
+        }}
+      >
+        <View style={{ alignItems: 'center' }}>
+          {icon}
+          <Animated.Text
+            style={[
+              typography.bodySmall,
+              {
+                color: '#FFFFFF',
+                fontSize: scaleSize(10),
+                fontWeight: '700',
+                marginTop: scaleSize(1),
+                opacity: labelOpacity,
+                transform: [{ translateY: labelTranslateY }],
+                textAlign: 'center',
+                position: isActive ? 'relative' : 'absolute',
+                top: isActive ? 0 : 20,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {label}
+          </Animated.Text>
+          {label === 'Chats' && chatCount > 0 && (
+            <View
+              style={{
+                position: 'absolute',
+                top: -scaleSize(4),
+                right: -scaleSize(10),
+                backgroundColor: '#22C55E',
+                borderRadius: scaleSize(10),
+                minWidth: scaleSize(20),
+                height: scaleSize(20),
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingHorizontal: scaleSize(4),
+              }}
+            >
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: scaleSize(11),
+                  fontWeight: 'bold',
+                }}
+              >
+                {chatCount > 99 ? '99+' : chatCount}
+              </Text>
+            </View>
+          )}
+        </View>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+});
+
 // Main Tab Navigator
 const TabNavigator = (): React.JSX.Element => {
   const theme = useTheme();
   const { isDarkMode } = theme;
   const navigation = useNavigation<CompositeMainNavigationProp>();
+  const { onlineCount, unreadMessagesCount, friendRequestsCount } = useSelector(
+    (state: RootState) => state.chat,
+    shallowEqual
+  );
+  const chatTotalCount = onlineCount + unreadMessagesCount + friendRequestsCount;
 
   // CRITICAL: Get actual device safe area insets
   const insets = useSafeAreaInsets();
   const SAFE_AREA_BOTTOM = insets.bottom;
   const TOTAL_TAB_BAR_HEIGHT = TAB_BAR_HEIGHT + SAFE_AREA_BOTTOM;
 
-  const tpCoinImage = useMemo(() => require('../../assets/icons/Tpcoin.png'), []);
+  // CRITICAL: Tab bar visibility is managed by navigation options
+  // No manual keyboard listeners needed for tab bar stability
 
-  // CRITICAL: Initialize with correct tab to prevent off-screen render
+
+  // Sync with navigation state - but don't reset lock immediately
   const [activeTab, setActiveTab] = useState<string>('Home');
   const isNavigatingRef = useRef(false);
   const lastNavigationTimeRef = useRef(0);
@@ -356,7 +457,7 @@ const TabNavigator = (): React.JSX.Element => {
       const excludedScreens = ['Chats', 'Trivia'];
       if (excludedScreens.includes(activeTab)) return;
 
-      const tabOrder = ['Leaderboard', 'Shop', 'Home', 'Chats', 'Wallet'];
+      const tabOrder = ['Leaderboard', 'Chats', 'Home', 'Shop', 'Wallet'];
       const currentIndex = tabOrder.indexOf(activeTab);
       if (currentIndex === -1) return;
 
@@ -441,23 +542,13 @@ const TabNavigator = (): React.JSX.Element => {
   // CRITICAL: Properly positioned with dynamic safe area insets
   const tabBarContainerStyle = useMemo(
     () => ({
-      position: 'absolute' as const,
-      bottom: 0,
-      left: 0,
-      right: 0,
+      position: 'relative' as const, // Changed from absolute to participate in layout flow
+      width: '100%',
       height: TOTAL_TAB_BAR_HEIGHT,
       backgroundColor: 'transparent',
-      zIndex: 9999, // Increased z-index to ensure it's always on top
-      elevation: 10, // Increased elevation for Android
-      // Prevent any layout shifts - critical for stability
       pointerEvents: 'box-none' as const,
-      // Add padding to respect safe area at bottom
       paddingBottom: SAFE_AREA_BOTTOM,
-      // Ensure tab bar stays in place during navigation
-      transform: [{ translateY: 0 }],
-      // CRITICAL: Always visible - never hide
-      display: 'flex' as const,
-      opacity: 1,
+      zIndex: 1000,
     }),
     [TOTAL_TAB_BAR_HEIGHT, SAFE_AREA_BOTTOM]
   );
@@ -476,51 +567,35 @@ const TabNavigator = (): React.JSX.Element => {
     [isDarkMode]
   );
 
-  // CRITICAL: Scene container style - always include bottom padding for tab bar
-  // Shop screen will handle its own layout since tab bar is hidden when Shop is active
+  // CRITICAL: Scene container style - always include bottom padding for tab bar.
+  // Do NOT conditionally remove paddingBottom on keyboard open — that causes a JS-driven
+  // layout animation (the visible upward jump). adjustResize handles window resizing natively.
   const sceneContainerStyle = useMemo(
     () => ({
-      paddingBottom: TOTAL_TAB_BAR_HEIGHT,
+      paddingBottom: 0, // Removed to prevent double inset application/gap when keyboard opens
       backgroundColor: 'transparent',
       flex: 1,
     }),
-    [TOTAL_TAB_BAR_HEIGHT]
+    []
   );
 
   // Memoized screen options with dynamic safe area
-  const screenOptions = useMemo(
+  const tabScreenOptions = useMemo(
     () => ({
       headerShown: false,
       freezeOnBlur: false,
       lazy: false, // keep tabs mounted to avoid re-inits/freezes
-      tabBarHideOnKeyboard: false,
+      tabBarHideOnKeyboard: true,
       // Prevent tab bar from jumping during navigation
       // CRITICAL: Fixed style to prevent recalculation
-      tabBarStyle: {
-        position: 'absolute' as const,
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: TOTAL_TAB_BAR_HEIGHT,
-        backgroundColor: 'transparent',
-        borderTopWidth: 0,
-        elevation: 0,
-        shadowOpacity: 0,
-        paddingTop: 0,
-        paddingBottom: SAFE_AREA_BOTTOM,
-        marginTop: 0,
-        marginBottom: 0,
-        // Ensure tab bar doesn't move during navigation
-        transform: [{ translateY: 0 }],
-      },
     }),
     [TOTAL_TAB_BAR_HEIGHT, SAFE_AREA_BOTTOM]
   );
 
+
   // Memoized tab bar to prevent re-renders - STABILIZED to prevent jumping
   const renderTabBar = useCallback(
     (props: any) => {
-      // CRITICAL: Always render tab bar - never hide it
       // Tab bar should always be visible regardless of navigation method (swipe or tap)
       return (
         <View style={tabBarContainerStyle} pointerEvents="box-none" collapsable={false}>
@@ -712,19 +787,22 @@ const TabNavigator = (): React.JSX.Element => {
                   }
                 };
 
-                // Regular tabs
+                // Regular tabs using Animated TabItem
                 return (
-                  <TouchableOpacity
+                  <TabItem
                     key={route.key}
-                    accessibilityRole="button"
-                    accessibilityState={isFocused ? { selected: true } : {}}
-                    accessibilityLabel={options.tabBarAccessibilityLabel || label}
-                    activeOpacity={0.7}
+                    isActive={isActive}
+                    icon={options.tabBarIcon?.({
+                      focused: isActive,
+                      color: '#FFFFFF',
+                      size: 40, // Restored original size
+                    })}
+                    label={label}
+                    onPress={onPress}
                     onPressIn={() => {
                       // PROFESSIONAL: Play sound on PRESS IN for instant feedback
-                      // CRITICAL: Debounce this to prevent double sounds from rapid touches
                       const now = Date.now();
-                      if (now - lastNavigationTimeRef.current > 300) { // Same threshold as debounce
+                      if (now - lastNavigationTimeRef.current > 300) {
                         if (audioManager && audioManager.isSoundEnabled) {
                           try {
                             audioManager.playSound('button').catch(() => { });
@@ -732,35 +810,8 @@ const TabNavigator = (): React.JSX.Element => {
                         }
                       }
                     }}
-                    onPress={onPress}
-                    style={{
-                      flex: 1,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      height: TAB_BAR_HEIGHT,
-                    }}
-                  >
-                    {isActive && (
-                      <View
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          backgroundColor: 'rgba(0,0,0,0.32)',
-                        }}
-                      />
-                    )}
-                    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                      {options.tabBarIcon?.({
-                        focused: isActive,
-                        color: '#FFFFFF',
-                        size: 40,
-                      })}
-                      {/* Labels removed - only icons shown */}
-                    </View>
-                  </TouchableOpacity>
+                    chatCount={route.name === 'Chats' ? chatTotalCount : 0}
+                  />
                 );
               })}
           </View>
@@ -772,7 +823,6 @@ const TabNavigator = (): React.JSX.Element => {
       gradientColors,
       tabBarContainerStyle,
       tabBarContentStyle,
-      tpCoinImage,
       TOTAL_TAB_BAR_HEIGHT,
       SAFE_AREA_BOTTOM,
     ]
@@ -782,13 +832,9 @@ const TabNavigator = (): React.JSX.Element => {
     <View style={{ flex: 1 }}>
       <Tab.Navigator
         initialRouteName="Home"
-        screenOptions={screenOptions}
-        sceneContainerStyle={sceneContainerStyle}
         tabBar={renderTabBar}
-        // CRITICAL: Keep screens mounted to avoid heavy re-inits on tab switch
-        detachInactiveScreens={false}
-        // CRITICAL: Ensure proper back behavior to maintain tab bar state
-        backBehavior="history"
+        screenOptions={tabScreenOptions}
+        sceneContainerStyle={sceneContainerStyle}
       >
         <Tab.Screen
           name="Leaderboard"
@@ -817,16 +863,48 @@ const TabNavigator = (): React.JSX.Element => {
           name="Chats"
           options={{
             tabBarIcon: ({ size }) => (
-              <Image
-                source={require('../../assets/navigation/Chat.png')}
-                style={{ width: size, height: size }}
-                resizeMode="contain"
-              />
+              <View>
+                <Image
+                  source={require('../../assets/navigation/Chat.png')}
+                  style={{ width: size, height: size }}
+                  resizeMode="contain"
+                />
+                {chatTotalCount > 0 && (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      right: -scaleSize(6),
+                      top: -scaleSize(4),
+                      backgroundColor: '#EF4444',
+                      borderRadius: scaleSize(8),
+                      minWidth: scaleSize(16),
+                      height: scaleSize(16),
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      paddingHorizontal: scaleSize(4),
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: 'white',
+                        fontSize: scaleSize(10),
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      {chatTotalCount > 99 ? '99+' : chatTotalCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
             ),
           }}
         >
           {() => (
-            <SwipeableScreen onSwipeLeft={() => { }} onSwipeRight={() => { }} enabled={false}>
+            <SwipeableScreen
+              onSwipeLeft={() => { }}
+              onSwipeRight={() => { }}
+              enabled={false}
+            >
               <ChatStackNavigator />
             </SwipeableScreen>
           )}
@@ -905,7 +983,7 @@ const TabNavigator = (): React.JSX.Element => {
           )}
         </Tab.Screen>
       </Tab.Navigator>
-    </View>
+    </View >
   );
 };
 
@@ -1013,6 +1091,35 @@ const MainNavigator = (): React.JSX.Element => {
             animation: 'simple_push', // Instant native animation
             animationDuration: 150, // Super fast
             presentation: 'card',
+          }}
+        />
+
+        {/* Chat detail screens moved from ChatStack to MainStack for professional appearance */}
+        <MainStack.Screen
+          name="ChatDetail"
+          component={ChatDetailScreen}
+          options={{
+            freezeOnBlur: false,
+            animation: 'slide_from_right',
+            presentation: 'card',
+          }}
+        />
+        <MainStack.Screen
+          name="GroupInfo"
+          component={GroupInfoScreen}
+          options={{
+            freezeOnBlur: false,
+            animation: 'slide_from_right',
+            presentation: 'card',
+          }}
+        />
+        <MainStack.Screen
+          name="StoryViewer"
+          component={StoryViewerScreen}
+          options={{
+            freezeOnBlur: false,
+            animation: 'fade',
+            presentation: 'fullScreenModal',
           }}
         />
 

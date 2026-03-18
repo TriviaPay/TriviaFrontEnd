@@ -299,7 +299,7 @@ const LoginScreen = () => {
         statusBarStyle="light-content"
         backgroundColor="transparent"
         translucent={true}
-        edges={['top', 'bottom', 'left', 'right']}
+        edges={['top', 'left', 'right']}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -612,7 +612,7 @@ const LoginScreen = () => {
                   {/* Forgot Password */}
                   <TouchableOpacity
                     onPress={() => {
-                      // Note: Forgot password functionality to be implemented in future release
+                      navigation.navigate('ForgotPassword');
                     }}
                     style={{
                       alignItems: 'center',

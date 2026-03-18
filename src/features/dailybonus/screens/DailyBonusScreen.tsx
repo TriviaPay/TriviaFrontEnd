@@ -7,7 +7,9 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
+import { useDispatch } from 'react-redux';
 import { useTheme, useDailyRewards, useShop } from '../../../hooks/useReduxHooks';
+import { setUserBalance } from '../../../store/slices/shopSlice';
 import { scaleSize } from '../../../utils/scaleSize';
 import soundManager from '../../../lib/audio/sound-manager';
 import { useStandardResponsive } from '../../../hooks/useStandardResponsive';
@@ -31,6 +33,7 @@ import { useNavigation } from '@react-navigation/native';
 
 export const DailyBonusScreen: React.FC = () => {
   const navigation = useNavigation();
+  const dispatch = useDispatch();
   // Platform-specific optimizations
   const { triggerHaptic } = useHapticFeedback();
   usePlatformOptimization();
@@ -178,15 +181,17 @@ export const DailyBonusScreen: React.FC = () => {
     cleanup,
   } = useMeasurements();
 
+  // Fetch gems immediately on mount - ensures correct count before UI renders
+  useEffect(() => {
+    if (fetchUserGems) fetchUserGems();
+  }, [fetchUserGems]);
+
   // Initialize when screen is mounted
   useEffect(() => {
     const frameId = requestAnimationFrame(() => {
       // Reset states
       ribbonAnim.setValue(0);
-      if (fetchUserGems) {
-        fetchUserGems();
-      }
-      const gemsToDisplay = userBalance?.gems || currentGems || currentTotalGems;
+      const gemsToDisplay = userBalance?.gems ?? currentGems ?? currentTotalGems;
       setDisplayedGems(gemsToDisplay);
       setAnimatingGems(false);
       setClaimInProgress(false);
@@ -226,7 +231,10 @@ export const DailyBonusScreen: React.FC = () => {
       cleanup();
     };
   }, [
+    userBalance?.gems,
+    currentGems,
     currentTotalGems,
+    dailyLoginStatus,
     ribbonAnim,
     startPulseAnimations,
     startShineAnimation,
@@ -237,10 +245,10 @@ export const DailyBonusScreen: React.FC = () => {
     cleanup,
   ]);
 
-  // Update gems when not animating
+  // Update displayed gems when API data loads - ensures correct count shows instantly
   useEffect(() => {
     if (!animatingGems) {
-      const gemsToDisplay = userBalance?.gems || currentGems || currentTotalGems;
+      const gemsToDisplay = userBalance?.gems ?? currentGems ?? currentTotalGems;
       setDisplayedGems(gemsToDisplay);
     }
   }, [userBalance?.gems, currentGems, currentTotalGems, animatingGems]);
@@ -248,7 +256,10 @@ export const DailyBonusScreen: React.FC = () => {
   const createSafeCompletionCallback = useCallback(() => {
     return async () => {
       try {
-        await claimDailyLogin().unwrap();
+        const result = await claimDailyLogin().unwrap();
+        if (typeof result?.total_gems === 'number') {
+          dispatch(setUserBalance({ gems: result.total_gems }));
+        }
         if (fetchUserGems) fetchUserGems();
         refetchDailyLoginStatus();
         setClaimInProgress(false);
@@ -259,7 +270,7 @@ export const DailyBonusScreen: React.FC = () => {
         setClaimInProgress(false);
       }
     };
-  }, [claimDailyLogin, refetchDailyLoginStatus, fetchUserGems]);
+  }, [claimDailyLogin, refetchDailyLoginStatus, fetchUserGems, dispatch]);
 
   const handleClaim = useCallback(
     (day: number) => {
@@ -295,11 +306,12 @@ export const DailyBonusScreen: React.FC = () => {
 
       const safeCallback = createSafeCompletionCallback();
 
+      const actualTotal = userBalance?.gems ?? currentGems ?? currentTotalGems;
       animateGemsCollection(
         day,
         sourcePosition,
         targetPosition,
-        currentTotalGems,
+        actualTotal,
         displayRewards,
         animateCounter,
         safeCallback
@@ -317,6 +329,8 @@ export const DailyBonusScreen: React.FC = () => {
       currentDay,
       cardPositions,
       gemsCountPosition,
+      userBalance?.gems,
+      currentGems,
       currentTotalGems,
       animateGemsCollection,
       animateCounter,

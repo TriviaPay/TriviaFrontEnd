@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
+import { logger } from '../lib/utils/logger';
 
 interface Country {
   id: string;
@@ -48,26 +49,19 @@ interface RootState {
 // countries list
 export const fetchCountries = createAsyncThunk(
   'countries/fetchCountries',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const { auth } = getState() as RootState;
-      logger.log('[fetchCountries] Access Token:', 'STORE', auth.accessToken);
+      const { apiService } = require('../services/apiService');
+      const response = await apiService.getCountries();
 
-      // Prepare headers with real authentication
-      const headers: any = {};
-      if (auth.accessToken) {
-        headers.Authorization = `Bearer ${auth.accessToken}`;
+      if (response.success && response.data) {
+        return response.data.countries;
+      } else {
+        return rejectWithValue(response.error || 'Failed to fetch countries');
       }
-
-      // const response = await axios.get("http://192.168.0.116:8000/profile/countries", {
-      const response = await axios.get('http://192.168.0.116:8000/profile/countries', {
-        headers,
-      });
-      logger.log('[fetchCountries] Response:', 'STORE', response.data);
-      return response.data.countries;
     } catch (error: any) {
       logger.error('[fetchCountries] Error:', 'STORE', error);
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch countries');
+      return rejectWithValue(error.message || 'Failed to fetch countries');
     }
   }
 );

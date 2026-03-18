@@ -8,6 +8,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector, shallowEqual } from 'react-redux';
 import { useDispatch } from 'react-redux';
 import { RootState } from '../store';
+import { setInitialized } from '../store/authSlice';
 import { logger } from '../lib/utils/logger';
 import { selectIsAuthenticated } from '../utils/selectors';
 
@@ -15,6 +16,7 @@ import { selectIsAuthenticated } from '../utils/selectors';
 import WelcomeScreen from '@features/auth/screens/WelcomeScreen';
 import { LoginScreen } from '@features/auth';
 import { SignupScreen } from '@features/auth';
+import { ForgotPasswordScreen } from '@features/auth';
 import MainNavigator from './MainNavigator';
 
 import ProfileScreen from '../features/profile/screens/ProfileScreen';
@@ -35,14 +37,8 @@ const AppNavigator: React.FC = () => {
   // CRITICAL: Immediately set isInitialized if false - don't wait
   React.useEffect(() => {
     if (!isInitialized) {
-      logger.warn('AppNavigator: isInitialized is false, setting it immediately', 'API');
-      import('../store/authSlice')
-        .then(({ setInitialized }) => {
-          dispatch(setInitialized(true));
-        })
-        .catch(e => {
-          logger.error('Failed to set isInitialized', 'API', e);
-        });
+      logger.warn('AppNavigator: isInitialized is false, setting it manually', 'API');
+      dispatch(setInitialized(true));
     }
   }, [isInitialized]);
 
@@ -114,6 +110,7 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Signup" component={SignupScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </>
         )}
       </Stack.Navigator>

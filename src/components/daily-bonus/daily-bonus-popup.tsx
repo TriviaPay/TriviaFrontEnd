@@ -9,7 +9,9 @@ import {
   Dimensions,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useDispatch } from 'react-redux';
 import { useTheme, useDailyRewards, useShop } from '../../hooks/useReduxHooks';
+import { setUserBalance } from '../../store/slices/shopSlice';
 import { scaleSize } from '../../utils/scaleSize';
 import soundManager from '../../lib/audio/sound-manager';
 import { useStandardResponsive } from '../../hooks/useStandardResponsive';
@@ -36,6 +38,7 @@ interface DailyBonusPopupProps {
 }
 
 const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onClaim }) => {
+  const dispatch = useDispatch();
   // Platform-specific optimizations
   const { triggerHaptic } = useHapticFeedback();
   usePlatformOptimization();
@@ -216,6 +219,11 @@ const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onC
     cleanup,
   } = useMeasurements();
 
+  // Fetch gems immediately when popup becomes visible - ensures correct count before UI renders
+  useEffect(() => {
+    if (visible && fetchUserGems) fetchUserGems();
+  }, [visible, fetchUserGems]);
+
   // Initialize popup when visible
   useEffect(() => {
     if (!visible) {
@@ -224,17 +232,10 @@ const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onC
     }
 
     // OPTIMIZED: Use requestAnimationFrame instead of InteractionManager
-    // InteractionManager can delay unnecessarily (500ms+), causing perceived freezing
-    // requestAnimationFrame ensures smooth UI without blocking
     const frameId = requestAnimationFrame(() => {
       // Reset states
       ribbonAnim.setValue(0);
-      // Fetch latest gems from backend (same as shop screen)
-      if (fetchUserGems) {
-        fetchUserGems();
-      }
-      // Use userBalance.gems from shop (same as shop screen), fallback to currentGems, then calculated total
-      const gemsToDisplay = userBalance?.gems || currentGems || currentTotalGems;
+      const gemsToDisplay = userBalance?.gems ?? currentGems ?? currentTotalGems;
       setDisplayedGems(gemsToDisplay);
       setAnimatingGems(false);
       setClaimInProgress(false);
@@ -282,8 +283,11 @@ const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onC
     };
   }, [
     visible,
+    userBalance?.gems,
+    currentGems,
     currentTotalGems,
     isCurrentDayClaimed,
+    dailyLoginStatus,
     ribbonAnim,
     startPulseAnimations,
     startShineAnimation,
@@ -292,15 +296,13 @@ const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onC
     measureGemIcon,
     resetAnimations,
     cleanup,
-    dailyLoginStatus,
     refetchDailyLoginStatus,
   ]);
 
-  // Update displayed gems when not animating - use userBalance.gems from shop (same as shop screen)
+  // Update displayed gems when API data loads - ensures correct count shows instantly
   useEffect(() => {
     if (!animatingGems) {
-      // Use userBalance.gems from shop (same as shop screen), fallback to currentGems, then calculated total
-      const gemsToDisplay = userBalance?.gems || currentGems || currentTotalGems;
+      const gemsToDisplay = userBalance?.gems ?? currentGems ?? currentTotalGems;
       setDisplayedGems(gemsToDisplay);
     }
   }, [userBalance?.gems, currentGems, currentTotalGems, animatingGems]);
@@ -309,23 +311,13 @@ const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onC
   const createSafeCompletionCallback = useCallback(() => {
     return async () => {
       try {
-        // Use RTK Query mutation to claim daily login
         const result = await claimDailyLogin().unwrap();
-
-        // Refresh gems from backend (same as shop screen)
-        if (fetchUserGems) {
-          fetchUserGems();
+        if (typeof result?.total_gems === 'number') {
+          dispatch(setUserBalance({ gems: result.total_gems }));
         }
-
-        // CRITICAL: Refresh daily login status to get updated days_claimed and current_day
-        // This will automatically update displayRewards via useMemo
+        if (fetchUserGems) fetchUserGems();
         refetchDailyLoginStatus();
-
-        // Update local state to show claimed (for backward compatibility)
-        if (result.current_day) {
-          updateRewards(result.current_day);
-        }
-
+        if (result.current_day) updateRewards(result.current_day);
         setClaimInProgress(false);
       } catch (error: any) {
         logger.error('❌ Error in claim completion:', 'APP', error);
@@ -343,7 +335,7 @@ const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onC
         setClaimInProgress(false);
       }
     };
-  }, [updateRewards, claimDailyLogin, refetchDailyLoginStatus, fetchUserGems]);
+  }, [updateRewards, claimDailyLogin, refetchDailyLoginStatus, fetchUserGems, dispatch]);
 
   const handleClaim = useCallback(
     (day: number) => {
@@ -391,11 +383,12 @@ const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onC
       const safeCallback = createSafeCompletionCallback();
 
       // Start gem animation from source day's card
+      const actualTotal = userBalance?.gems ?? currentGems ?? currentTotalGems;
       animateGemsCollection(
         day,
         sourcePosition,
         targetPosition,
-        currentTotalGems,
+        actualTotal,
         displayRewards,
         animateCounter,
         safeCallback
@@ -413,6 +406,8 @@ const DailyBonusPopup: React.FC<DailyBonusPopupProps> = ({ visible, onClose, onC
       currentDay,
       cardPositions,
       gemsCountPosition,
+      userBalance?.gems,
+      currentGems,
       currentTotalGems,
       animateGemsCollection,
       animateCounter,

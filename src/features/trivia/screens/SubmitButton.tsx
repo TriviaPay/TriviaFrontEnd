@@ -73,36 +73,21 @@ const SubmitButton: React.FC<SubmitButtonProps> = ({
       <ImageBackground
         source={require('../../../../assets/trivia/submitBtn.png')}
         style={{
-          paddingHorizontal: scaleSize(20),
-          paddingVertical: scaleSize(10),
-          borderRadius: scaleSize(25),
-          minWidth: scaleSize(140),
+          width: scaleSize(120),
+          height: scaleSize(48),
           alignItems: 'center',
-          top: scaleSize(-18),
-          height: scaleSize(62),
+          justifyContent: 'center',
+          top: scaleSize(-10),
         }}
-        resizeMode="stretch"
+        resizeMode="contain"
       >
-        {isLoading ? (
+        {isLoading && (
           <LottieView
             source={require('../../../../assets/animations/LoadingBar.json')}
             autoPlay
             loop
             style={{ width: scaleSize(40), height: scaleSize(40), top: scaleSize(4) }}
           />
-        ) : (
-          <Text
-            style={[
-              typography.button,
-              {
-                color: textColor,
-                top: scaleSize(4),
-                fontSize: scaleSize(18),
-              },
-            ]}
-          >
-            {isSubmitted ? 'Submitted' : 'Submit'}
-          </Text>
         )}
       </ImageBackground>
     </SoundTouchableOpacity>

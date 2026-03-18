@@ -736,34 +736,23 @@ const FreeTriviaScreen: React.FC = () => {
                             onPress={() => handleSubmit()}
                             disabled={!selectedAnswer}
                             style={{
-                              width: '80%',
-                              height: scaleSize(50),
-                              borderRadius: scaleSize(25),
-                              overflow: 'hidden',
+                              width: scaleSize(120),
+                              height: scaleSize(48),
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               opacity: selectedAnswer ? 1 : 0.5,
                             }}
                           >
-                            <LinearGradient
-                              colors={['#1e90ff', '#0a6fc2']}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 0 }}
+                            <ImageBackground
+                              source={require('../../../../assets/trivia/submitBtn.png')}
                               style={{
                                 width: '100%',
                                 height: '100%',
                                 justifyContent: 'center',
                                 alignItems: 'center',
                               }}
-                            >
-                              <Text
-                                style={{
-                                  color: 'white',
-                                  fontSize: scaleSize(18),
-                                  fontWeight: 'bold',
-                                }}
-                              >
-                                SUBMIT ANSWER
-                              </Text>
-                            </LinearGradient>
+                              resizeMode="contain"
+                            />
                           </SoundTouchableOpacity>
                         </Animated.View>
                       )}

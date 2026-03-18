@@ -938,7 +938,7 @@ const TriviaSelectionScreen: React.FC = React.memo(() => {
   const CARD_WIDTH = useMemo(() => {
     // CRITICAL: Return a sensible default instead of 0 to prevent blank screen
     if (usableWidth <= 0) return 250; // Default card width for initial render
-    return Math.max((usableWidth - CARD_SPACING * 2) / 1.5, 0);
+    return Math.max((usableWidth - CARD_SPACING * 2) / 1.5 - scaleSize(10), 0);
   }, [CARD_SPACING, usableWidth]);
   const CARD_HEIGHT = useMemo(() => CARD_WIDTH * 1.45, [CARD_WIDTH]);
   const CARD_TOTAL_WIDTH = useMemo(() => CARD_WIDTH + CARD_SPACING, [CARD_WIDTH, CARD_SPACING]);

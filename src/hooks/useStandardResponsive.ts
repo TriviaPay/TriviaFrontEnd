@@ -10,7 +10,7 @@
 import { useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useDimensions } from './useDimensions';
-import { scaleSize } from '../utils/scaleSize';
+import { scaleSize as staticScaleSize } from '../utils/scaleSize';
 import { ASPECT_RATIOS } from '../constants/uiConstants';
 
 interface StandardResponsiveConfig {
@@ -101,11 +101,10 @@ export const useStandardResponsive = (): StandardResponsiveConfig => {
     const isWideScreen = aspectRatio >= ASPECT_RATIOS.WIDE;
 
     // All scaling uses scaleSize for consistency - EXACTLY matching useResponsive behavior
-    // This ensures UI alignment stays exactly the same
-    // UPDATED: Use dynamic width from hook state to ensure perfect sync with orientation
     const BASE_WIDTH = 390;
 
-    // Create a dynamic scale function based on current hook width
+    // Functions defined inside useMemo are naturally stable relative to the memoized result.
+    // We do NOT use useCallback here because we are already inside a useMemo block.
     const dynamicScale = (size: number) => (width / BASE_WIDTH) * size;
 
     const scaleFont = (size: number): number => dynamicScale(size);
@@ -114,21 +113,20 @@ export const useStandardResponsive = (): StandardResponsiveConfig => {
     const scaleSizeFunc = (size: number): number => dynamicScale(size);
 
     // Spacing functions - EXACTLY matching useResponsive behavior
-    // useResponsive uses: scaleSize(8 * multiplier)
     const getSpacing = (multiplier: number): number => {
-      return scaleSize(8 * multiplier);
+      return staticScaleSize(8 * multiplier);
     };
 
     const getVerticalSpacing = (multiplier: number): number => {
-      return scaleSize(8 * multiplier);
+      return staticScaleSize(8 * multiplier);
     };
 
     const getHorizontalSpacing = (multiplier: number): number => {
-      return scaleSize(8 * multiplier);
+      return staticScaleSize(8 * multiplier);
     };
 
     const getFullWidthSpacing = (multiplier: number): number => {
-      return scaleSize(16 * multiplier);
+      return staticScaleSize(16 * multiplier);
     };
 
     // Layout values - using scaleSizeFunc to maintain exact alignment

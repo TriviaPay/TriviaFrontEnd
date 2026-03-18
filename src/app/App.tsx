@@ -33,6 +33,8 @@ import { preloadService } from '../services/preloadService';
 import { prefetchCriticalData } from '../services/prefetchService';
 
 import { keychainStorage } from '../services/keychainStorage';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
+
 
 /**
  * Safe AdMob initialization
@@ -295,7 +297,7 @@ const AppContent: React.FC = () => {
       <StatusBar
         barStyle={Platform.OS === 'ios' ? 'dark-content' : 'light-content'}
         backgroundColor="transparent"
-        translucent
+        translucent={true}
       />
       <AppNavigator />
       <GlobalLoader />
@@ -310,9 +312,11 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <Providers>
-        <AppContent />
-      </Providers>
+      <KeyboardProvider statusBarTranslucent={true} navigationBarTranslucent={true}>
+        <Providers>
+          <AppContent />
+        </Providers>
+      </KeyboardProvider>
     </ErrorBoundary>
   );
 };

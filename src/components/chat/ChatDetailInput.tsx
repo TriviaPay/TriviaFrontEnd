@@ -3,18 +3,13 @@
  * Ported from TriviaPay to TriviaCoin with enhanced features
  */
 
-import React, { useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { memo } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Keyboard,
-  Platform,
   StyleSheet,
-  ViewStyle,
-  TextStyle,
-  ImageStyle,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import SoundTouchableOpacity from '../../core/components/SoundTouchableOpacity';
@@ -36,8 +31,6 @@ export interface ChatDetailInputProps {
   replyingTo?: { id: number; message: string; sender: string } | null;
   onCancelReply?: () => void;
   styles: any;
-  currentUserId?: number | string | null;
-  profile?: any;
 }
 
 const ChatDetailInput: React.FC<ChatDetailInputProps> = ({
@@ -56,15 +49,13 @@ const ChatDetailInput: React.FC<ChatDetailInputProps> = ({
   replyingTo,
   onCancelReply,
   styles: parentStyles,
-  currentUserId,
-  profile,
 }) => {
   // Merge parent styles with default styles
   const localStyles = {
     ...styles,
     ...(parentStyles || {}),
   };
-  
+
   // Determine if replying to own message - check if sender is exactly 'You'
   const isReplyingToOwnMessage = replyingTo?.sender === 'You';
   const replySenderName = isReplyingToOwnMessage ? 'You' : (replyingTo?.sender || '');
@@ -101,7 +92,7 @@ const ChatDetailInput: React.FC<ChatDetailInputProps> = ({
           <View style={localStyles.replyPreviewContent}>
             <Text style={[
               localStyles.replyPreviewSender,
-              isReplyingToOwnMessage 
+              isReplyingToOwnMessage
                 ? localStyles.replyPreviewSenderUser
                 : localStyles.replyPreviewSenderOther
             ]}>
@@ -164,7 +155,7 @@ const ChatDetailInput: React.FC<ChatDetailInputProps> = ({
 const styles = StyleSheet.create({
   messageInputContainer: {
     paddingHorizontal: scaleSize(16),
-    paddingVertical: scaleSize(12),
+    paddingVertical: 0,
     backgroundColor: '#000000',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
@@ -248,4 +239,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ChatDetailInput;
+export default memo(ChatDetailInput);

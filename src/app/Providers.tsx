@@ -17,7 +17,6 @@ import { store, persistor } from '@store';
 import { navigationRef } from '@navigation';
 import { ErrorBoundary } from './ErrorBoundary';
 import { DESCOPE_CONFIG } from '@config/descope';
-import audioManager from '../lib/audio/AudioManagerSafe';
 
 // Custom Navigation Theme
 const AppTheme = {
@@ -63,15 +62,6 @@ interface ProvidersProps {
 }
 
 export const Providers: React.FC<ProvidersProps> = ({ children }) => {
-  // Professional navigation transition sound handler
-  const handleNavigationStateChange = React.useCallback(() => {
-    // Play subtle click sound on screen transitions
-    // Fire-and-forget for non-blocking audio
-    if (audioManager && audioManager.isSoundEnabled) {
-      audioManager.playSound('click').catch(() => { });
-    }
-  }, []);
-
   return (
     <ErrorBoundary>
       <AuthProvider
@@ -88,7 +78,6 @@ export const Providers: React.FC<ProvidersProps> = ({ children }) => {
                   <NavigationContainer
                     ref={navigationRef}
                     theme={AppTheme}
-                    onStateChange={handleNavigationStateChange}
                   >
                     <BackButtonHandler>{children}</BackButtonHandler>
                   </NavigationContainer>

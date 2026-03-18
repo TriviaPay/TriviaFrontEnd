@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,13 @@ import {
   StyleSheet,
   Platform,
   Alert,
-  Keyboard,
   KeyboardAvoidingView,
+  Keyboard,
+  TouchableOpacity,
 } from 'react-native';
-import dateUtils from '../../../utils/dateUtils';
-
 import { useSelector, useDispatch, shallowEqual } from 'react-redux';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 
@@ -22,14 +21,15 @@ import { skipToken } from '@reduxjs/toolkit/query/react';
 import { useIsMounted } from '../../../hooks/useIsMounted';
 import { useTrackScreenView } from '../../../hooks/useAnalytics';
 import { useSoundEffects } from '../../../hooks/use-sound-effects';
+import useKeyboardStatus from '../../../core/hooks/useKeyboardStatus';
 import { useSafeArea } from '../../../hooks/useSafeArea';
 import { useStatusBar } from '../../../hooks/useStatusBar';
 import { usePlatformOptimization, useHapticFeedback, useAndroidBackButton } from '../../../hooks/usePlatformOptimization';
 import { useStandardResponsive } from '../../../hooks/useStandardResponsive';
 import { formatTime, formatLastSeen } from '../../../utils/chat/messageFormatters';
-
 import { decryptMessage } from '../../../lib/crypto/encryptor';
 import { logger } from '../../../lib/utils/logger';
+import { scaleSize } from '../../../utils/scaleSize';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { API_CONFIG } from '../../../config/api';
 import BlockedUserBanner from '../../../components/chat/BlockedUserBanner';
@@ -113,22 +113,20 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const { playClick, playMessage, canPlaySounds } = useSoundEffects();
-  const { triggerHaptic } = useHapticFeedback();
+  const { keyboardShown, keyboardHeight } = useKeyboardStatus();
   const safeArea = useSafeArea();
-
+  const { triggerHaptic } = useHapticFeedback();
 
   const {
     scaleFont,
     scaleSize: scaleSizeFunc,
     getHorizontalSpacing,
-    getVerticalSpacing,
-    headerHeight: standardHeaderHeight
+    getVerticalSpacing
   } = useStandardResponsive();
 
   useTrackScreenView('ChatDetailScreen');
   useStatusBar({ style: 'light-content', backgroundColor: '#000000' });
   usePlatformOptimization();
-  // using native Platform.OS to avoid hook issues reported by user
 
   // Params
   const { chat, conversation: conversationParam } = route.params as {
@@ -149,8 +147,6 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
   const peerUserId = chat.peerUserId || conversationParam?.peer_user_id;
   const isGroupChat = !!(chat?.isGroup || chat.groupId);
   const isPrivateChat = !isGroupChat;
-  const insets = useSafeAreaInsets();
-  const headerHeight = standardHeaderHeight || 64;
   const { token } = useSelector((state: RootState) => state.auth);
 
   // Local State
@@ -164,7 +160,6 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
     null
   );
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
-  const [pendingOptimisticMessages, setPendingOptimisticMessages] = useState<any[]>([]);
   const [localConversationStatus, setLocalConversationStatus] = useState<'pending' | 'accepted' | 'declined' | undefined>(undefined);
   const [detectedPendingStatus, setDetectedPendingStatus] = useState<boolean>(false);
   const [conversationStatusFromAPI, setConversationStatusFromAPI] = useState<string | undefined>(undefined);
@@ -172,26 +167,6 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
   const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
   const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
   const [localIsTyping, setLocalIsTyping] = useState(false);
-  const [keyboardShown, setKeyboardShown] = useState(false);
-  const [inputContainerHeight, setInputContainerHeight] = useState(scaleSizeFunc(60));
-
-  // Single keyboard listener: visibility for scroll button + scroll when near bottom
-  useEffect(() => {
-    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => {
-      if (!isMounted()) return;
-      setKeyboardShown(true);
-      if (isNearBottomRef.current) {
-        requestAnimationFrame(() => flatListRef.current?.scrollToEnd({ animated: true }));
-      }
-    });
-    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
-      if (isMounted()) setKeyboardShown(false);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, [isMounted]);
 
   // Refs
   const flatListRef = useRef<FlatList>(null);
@@ -199,61 +174,24 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
   const prevMessagesKeyRef = useRef<string>('');
   const isNearBottomRef = useRef<boolean>(true);
 
-
   // --- API HOOKS ---
   const { data: conversationsData, refetch: refetchConversations } = useGetConversationsQuery(undefined, {
     pollingInterval: 30000,
   });
   const allConversations = conversationsData?.conversations || [];
 
-  // Use RTK Query for reliable message loading (replaces failing manual fetch hook)
-  const { data: messagesData, isFetching: isMessagesLoading, refetch: refetchMessages } = useGetMessagesQuery(
-    currentConversationId ? { conversationId: currentConversationId } : skipToken
-  );
-  // Keep useConversationMessages for real-time typing, sending, and read-receipt side effects
+  // Use real-time hook for private chat messages
   const {
-    messages: HookPrivateMessages,
+    messages: privateMessages,
+    loading: isMessagesLoading,
     sending: privateSending,
     sendMessage: sendPrivateMessage,
     markAsRead,
     sendTyping,
     acceptRejectConversation,
     isOtherUserTyping,
-    fetchMessages: hookFetchMessages
+    fetchMessages: fetchPrivateMessages,
   } = useConversationMessages(currentConversationId);
-
-  const privateMessages = useMemo(() => {
-    // Combine RTK Query messages + Hook (Redux) messages + pending optimistic (new conversations)
-    const apiMsgs = messagesData?.messages || [];
-    const hookMsgs = HookPrivateMessages || [];
-    const pending = pendingOptimisticMessages || [];
-
-    const combined = [...apiMsgs];
-    hookMsgs.forEach(hMsg => {
-      if (!combined.some(aMsg => String(aMsg.id) === String(hMsg.id))) {
-        combined.push(hMsg);
-      }
-    });
-    pending.forEach(pMsg => {
-      const hasRealMatch = combined.some(c => c.id > 0 && c.sender_id === pMsg.sender_id && String(c.message).trim() === String(pMsg.message).trim());
-      const alreadyAdded = combined.some(aMsg => String(aMsg.id) === String(pMsg.id));
-      if (!alreadyAdded && !hasRealMatch) combined.push(pMsg);
-    });
-
-    combined.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
-    return combined;
-  }, [HookPrivateMessages, messagesData?.messages, pendingOptimisticMessages]);
-
-  // Clear pending optimistic when real message arrives (from API or Pusher)
-  useEffect(() => {
-    const apiMsgs = messagesData?.messages || [];
-    const hookMsgs = HookPrivateMessages || [];
-    const realMsgs = [...apiMsgs, ...hookMsgs].filter(m => m.id > 0);
-    if (realMsgs.length === 0 || pendingOptimisticMessages.length === 0) return;
-    setPendingOptimisticMessages(prev =>
-      prev.filter(p => !realMsgs.some(r => r.sender_id === p.sender_id && String(r.message).trim() === String(p.message).trim()))
-    );
-  }, [messagesData?.messages, HookPrivateMessages, pendingOptimisticMessages.length]);
 
   // Chat mute preferences
   const {
@@ -389,55 +327,52 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
     }
   }, [currentConversationId, privateMessages.length, markAsReadMutation]);
 
-  // Cache for transformed private messages
-  const transformedPrivateMessagesCacheRef = useRef<Record<string, Message>>({});
-
-  // Convert API message to UI format (optimized with cache)
+  // Convert API message to UI format
   const convertMessageToUI = useCallback(async (msg: any): Promise<Message> => {
-    const cacheKey = `${msg.id}:${msg.created_at}:${msg.status}`;
-    if (transformedPrivateMessagesCacheRef.current[cacheKey]) {
-      return transformedPrivateMessagesCacheRef.current[cacheKey];
-    }
-
     let plaintext = msg.message;
     if (!plaintext && msg.ciphertext && msg.sender_id) {
       try {
         plaintext = await decryptMessage(String(msg.sender_id), msg.ciphertext);
       } catch {
-        plaintext = '🔒 Decryption failed';
+        plaintext = '≡ƒöÆ Decryption failed';
       }
     }
 
+    // Check if message is from current user
+    // In private chat: if sender_id matches peerUserId, it's the OTHER user's message
+    // Otherwise, it's the current user's message
     const currentUserId = (profile as any)?.account_id || (profile as any)?.id;
     const currentUsername = (profile as any)?.username || (profile as any)?.name || '';
     const msgSenderId = msg.sender_id ? Number(msg.sender_id) : null;
     const msgSenderUsername = String(msg.sender_username || msg.sender || '').trim();
     const peerId = peerUserId ? Number(peerUserId) : null;
-
+    
+    // PRIMARY CHECK: In private chat, if sender_id != peerUserId, it's the current user's message
     let isCurrentUser = false;
     if (peerId !== null && msgSenderId !== null) {
+      // If sender_id matches peerUserId, it's the OTHER user's message
       isCurrentUser = msgSenderId !== peerId;
     } else {
-      isCurrentUser =
+      // Fallback: match by current user ID or username
+      isCurrentUser = 
         (currentUserId && msgSenderId !== null && Number(msgSenderId) === Number(currentUserId)) ||
-        (currentUsername && msgSenderUsername &&
-          msgSenderUsername.toLowerCase() === currentUsername.toLowerCase());
+        (currentUsername && msgSenderUsername && 
+         msgSenderUsername.toLowerCase() === currentUsername.toLowerCase());
     }
 
-    // Parse date as UTC to ensure correct local conversion
-    const dateStr = (msg.created_at || '').toString();
-    const finalUtcStr = dateStr.includes('Z') || dateStr.includes('+')
-      ? dateStr
-      : (dateStr.includes('T') ? `${dateStr}Z` : `${dateStr.replace(' ', 'T')}Z`);
-
-    const messageDate = new Date(finalUtcStr && finalUtcStr !== 'Z' ? finalUtcStr : Date.now());
-    // Manual formatting for maximum reliability in React Native environments
-    const formattedTime = messageDate.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
+    // DEBUG: Log user matching logic
+    console.log('≡ƒöì [ChatDetailScreen] USER MATCHING DEBUG:', {
+      messageId: msg.id,
+      msgSenderId,
+      msgSenderUsername,
+      peerUserId: peerId,
+      currentUserId,
+      currentUsername,
+      isCurrentUser,
+      logic: peerId !== null && msgSenderId !== null ? 'peerId comparison' : 'fallback comparison',
     });
 
+    // Get level and profile data - use sender's data if available, otherwise use current user's profile for own messages
     let level: number | null = null;
     let avatar_url: string | null = null;
     let profile_pic: string | null = null;
@@ -445,12 +380,14 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
     let badge: { image_url?: string | null } | null = null;
 
     if (isCurrentUser) {
+      // For user's own messages, use profile data
       level = (profile as any)?.level || (profile as any)?.user_level || null;
       avatar_url = (profile as any)?.avatar_url || null;
       profile_pic = (profile as any)?.profile_pic || (profile as any)?.avatar || null;
       frame_url = (profile as any)?.frame_url || null;
       badge = (profile as any)?.badge || null;
     } else {
+      // For other users' messages, use sender's data from message
       level = msg.sender_level || msg.level || null;
       avatar_url = msg.sender_avatar_url || msg.avatar_url || null;
       profile_pic = msg.sender_profile_pic || msg.profile_pic || null;
@@ -458,11 +395,11 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
       badge = msg.sender_badge || msg.badge || null;
     }
 
-    const uiMsg: Message = {
+    return {
       id: msg.id,
       text: plaintext || '',
       sender: isCurrentUser ? 'You' : (msg.sender_username || 'Unknown'),
-      timestamp: formattedTime,
+      timestamp: formatTime(new Date(msg.created_at || Date.now())),
       status: msg.is_read ? 'read' : msg.delivered_at ? 'delivered' : 'sent',
       isUser: isCurrentUser,
       image: msg.image,
@@ -473,9 +410,6 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
       badge,
       reply_to: msg.reply_to,
     };
-
-    transformedPrivateMessagesCacheRef.current[cacheKey] = uiMsg;
-    return uiMsg;
   }, [profile, peerUserId]);
 
   useEffect(() => {
@@ -489,52 +423,19 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
       prevMessagesKeyRef.current = key;
 
       const converted = await Promise.all(privateMessages.map(convertMessageToUI));
-
-      // Sort messages ascending (oldest first) for non-inverted list
-      const sorted = converted.sort((a, b) => {
-        const dateA = privateMessages.find(m => m.id === a.id)?.created_at;
-        const dateB = privateMessages.find(m => m.id === b.id)?.created_at;
-        if (!dateA || !dateB) return a.id - b.id;
-        return new Date(dateA).getTime() - new Date(dateB).getTime();
-      });
-
-      // Insert date separators BEFORE each group (oldest at top, newest at bottom)
-      const withDates: any[] = [];
-      for (let i = 0; i < sorted.length; i++) {
-        const current = sorted[i];
-        const currentData = privateMessages.find(m => m.id === current.id);
-        const prev = sorted[i - 1];
-        const prevData = prev ? privateMessages.find(m => m.id === prev.id) : null;
-
-        // Insert date separator before this message if it's the first of the day
-        if (currentData && (!prevData || dateUtils.isDifferentDay(currentData.created_at, prevData.created_at))) {
-          withDates.push({
-            id: `date-sep-${current.id}`,
-            isDateSeparator: true,
-            dateLabel: dateUtils.getMessageDateLabel(currentData.created_at),
-          });
-        }
-
-        withDates.push(current);
-      }
-
-      if (isMounted()) setDisplayMessages(withDates);
+      if (isMounted()) setDisplayMessages(converted.sort((a, b) => a.id - b.id));
     };
     processMessages();
-  }, [privateMessages, currentConversationId, convertMessageToUI, isMounted]);
+  }, [privateMessages, currentConversationId, convertMessageToUI, isMounted, displayMessages.length]);
 
-  // Back button handler: dismiss keyboard first when open, then navigate
+  // Back button handler
   const handleGoBack = useCallback(() => {
-    if (keyboardShown) {
-      Keyboard.dismiss();
-      return true;
-    }
     if (navigation.canGoBack()) {
       navigation.goBack();
       return true;
     }
     return false;
-  }, [navigation, keyboardShown]);
+  }, [navigation]);
 
   useAndroidBackButton(handleGoBack);
 
@@ -620,20 +521,20 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
 
   const toggleMute = useCallback(async () => {
     if (!peerUserId) return;
-    logger.info('🔕 [ChatDetail] TOGGLING MUTE', 'CHAT', { peerUserId });
+    logger.info('≡ƒöò [ChatDetail] TOGGLING MUTE', 'CHAT', { peerUserId });
     try {
       await togglePrivateChat(peerUserId);
       triggerHaptic?.();
-      logger.info('✅ [ChatDetail] MUTE TOGGLED', 'CHAT');
+      logger.info('Γ£à [ChatDetail] MUTE TOGGLED', 'CHAT');
     } catch (error) {
-      logger.error('❌ [ChatDetail] MUTE FAILED', 'CHAT', error);
+      logger.error('Γ¥î [ChatDetail] MUTE FAILED', 'CHAT', error);
       Alert.alert('Error', 'Failed to toggle mute');
     }
   }, [peerUserId, togglePrivateChat, triggerHaptic]);
 
   const handleAcceptConversation = useCallback(async () => {
     if (!currentConversationId || !acceptRejectConversation) return;
-    logger.info('🤝 [ChatDetail] ACCEPTING CONVERSATION', 'CHAT', { conversationId: currentConversationId });
+    logger.info('≡ƒñ¥ [ChatDetail] ACCEPTING CONVERSATION', 'CHAT', { conversationId: currentConversationId });
     try {
       if (canPlaySounds) playClick?.();
       const result = await acceptRejectConversation(currentConversationId, 'accept');
@@ -641,14 +542,14 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
         setLocalConversationStatus('accepted');
         setDetectedPendingStatus(false);
         refreshConversationsList();
-        refetchMessages();
-        logger.info('✅ [ChatDetail] CONVERSATION ACCEPTED', 'CHAT');
+        fetchPrivateMessages(50).catch(() => { });
+        logger.info('Γ£à [ChatDetail] CONVERSATION ACCEPTED', 'CHAT');
       }
     } catch (error) {
-      logger.error('❌ [ChatDetail] ACCEPT FAILED', 'CHAT', error);
+      logger.error('Γ¥î [ChatDetail] ACCEPT FAILED', 'CHAT', error);
       Alert.alert('Error', 'Failed to accept conversation');
     }
-  }, [currentConversationId, acceptRejectConversation, canPlaySounds, playClick, isMounted, refreshConversationsList, refetchMessages]);
+  }, [currentConversationId, acceptRejectConversation, canPlaySounds, playClick, isMounted, refreshConversationsList, fetchPrivateMessages]);
 
   const handleRejectConversation = useCallback(async () => {
     if (!currentConversationId || !acceptRejectConversation) return;
@@ -658,16 +559,16 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
         text: 'Decline',
         style: 'destructive',
         onPress: async () => {
-          logger.info('🚫 [ChatDetail] REJECTING CONVERSATION', 'CHAT', { conversationId: currentConversationId });
+          logger.info('≡ƒÜ½ [ChatDetail] REJECTING CONVERSATION', 'CHAT', { conversationId: currentConversationId });
           try {
             const result = await acceptRejectConversation(currentConversationId, 'reject');
             if (result && result.success !== false && isMounted()) {
               setLocalConversationStatus('declined');
-              logger.info('✅ [ChatDetail] CONVERSATION REJECTED', 'CHAT');
+              logger.info('Γ£à [ChatDetail] CONVERSATION REJECTED', 'CHAT');
               navigation.goBack();
             }
           } catch (error) {
-            logger.error('❌ [ChatDetail] REJECT FAILED', 'CHAT', error);
+            logger.error('Γ¥î [ChatDetail] REJECT FAILED', 'CHAT', error);
             Alert.alert('Error', 'Failed to decline conversation');
           }
         }
@@ -728,7 +629,7 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
     const textToSend = message.trim();
     const imageToSend = selectedImage;
 
-    logger.info('🚀 [ChatDetail] SENDING MESSAGE', 'CHAT', {
+    logger.info('≡ƒÜÇ [ChatDetail] SENDING MESSAGE', 'CHAT', {
       recipientId: peerUserId,
       hasImage: !!imageToSend,
       replyTo: replyingTo?.id
@@ -755,19 +656,12 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
       };
 
       if (sendPrivateMessage && peerUserId) {
-        if (!currentConversationId) {
-          setPendingOptimisticMessages(prev => [...prev, optimisticMessage]);
-        }
         const result = await sendPrivateMessage(peerUserId, textToSend, clientMessageId, optimisticMessage, imageToSend, replyingTo?.id);
-        if (result?.conversation_id && isMounted()) {
-          setCurrentConversationId(result.conversation_id);
-        }
         if (canPlaySounds) playMessage?.();
-        logger.info('✅ [ChatDetail] PRIVATE MESSAGE SENT TRIGGERED', 'CHAT', { success: !!result });
+        logger.info('Γ£à [ChatDetail] PRIVATE MESSAGE SENT TRIGGERED', 'CHAT', { success: !!result });
       } else {
-        // Fallback for non-private or if hook not ready - add optimistic for instant display
-        setPendingOptimisticMessages(prev => [...prev, optimisticMessage]);
-        logger.info('♻️ [ChatDetail] SENDING VIA FALLBACK MUTATION', 'CHAT');
+        // Fallback for non-private or if hook not ready
+        logger.info('ΓÖ╗∩╕Å [ChatDetail] SENDING VIA FALLBACK MUTATION', 'CHAT');
         const payload = {
           message: textToSend,
           conversation_id: currentConversationId,
@@ -776,10 +670,10 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
           reply_to_message_id: replyingTo?.id,
         };
         await sendMessageMutation(payload as any).unwrap();
-        logger.info('✅ [ChatDetail] FALLBACK SEND SUCCESS', 'CHAT');
+        logger.info('Γ£à [ChatDetail] FALLBACK SEND SUCCESS', 'CHAT');
       }
     } catch (err: any) {
-      logger.error('❌ [ChatDetail] SEND FAILED', 'CHAT', err);
+      logger.error('Γ¥î [ChatDetail] SEND FAILED', 'CHAT', err);
       Alert.alert('Error', err?.message || 'Failed to send message');
       setMessage(textToSend);
       setSelectedImage(imageToSend);
@@ -794,26 +688,35 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
     localIsTyping
   });
 
-  const styles = useMemo(() => createStyles(scaleFont, scaleSizeFunc, getHorizontalSpacing, getVerticalSpacing), [scaleFont, scaleSizeFunc, getHorizontalSpacing, getVerticalSpacing]);
+  const styles = createStyles(scaleFont, scaleSizeFunc, getHorizontalSpacing, getVerticalSpacing);
 
-  const renderMessageItem = useCallback(({ item }: { item: any }) => {
-    if (item.isDateSeparator) {
-      return (
-        <View style={styles.dateSeparator}>
-          <View style={styles.dateSeparatorLine} />
-          <View style={styles.dateSeparatorCapsule}>
-            <Text style={styles.dateSeparatorText}>{item.dateLabel}</Text>
-          </View>
-          <View style={styles.dateSeparatorLine} />
-        </View>
-      );
-    }
+  // DEBUG: Log styles when they're created
+  useEffect(() => {
+    console.log('≡ƒöì [ChatDetailScreen] STYLES DEBUG:', {
+      messageContainer: styles.messageContainer,
+      userMessage: styles.userMessage,
+      otherMessage: styles.otherMessage,
+      messagesList: styles.messagesList,
+    });
+  }, [styles.messageContainer, styles.userMessage, styles.otherMessage, styles.messagesList]);
+
+  const renderMessageItem = ({ item }: { item: Message }) => {
+    // DEBUG: Log message item rendering
+    console.log('≡ƒöì [ChatDetailScreen] RENDERING MESSAGE:', {
+      messageId: item.id,
+      sender: item.sender,
+      isUser: item.isUser,
+      text: item.text?.substring(0, 20) + '...',
+      messageContainerStyle: styles.messageContainer,
+      userMessageStyle: styles.userMessage,
+      otherMessageStyle: styles.otherMessage,
+    });
 
     return (
-      <ChatMessageItem
-        item={item}
-        isPrivateChat={isPrivateChat}
-        isGroupChat={isGroupChat}
+    <ChatMessageItem
+      item={item}
+      isPrivateChat={isPrivateChat}
+      isGroupChat={isGroupChat}
         onLongPress={(id, text, sender, isUser) => {
           // Always use 'You' if it's the user's own message, otherwise use sender name
           const replySender = isUser ? 'You' : (sender || 'Unknown');
@@ -824,19 +727,19 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
           // Always use 'You' if it's the user's own message, otherwise use sender name
           const replySender = isUser ? 'You' : (sender || 'Unknown');
           setReplyingTo({ id, message: text, sender: replySender });
-          inputRef.current?.focus();
-        }}
-        styles={styles}
-      />
-    );
-  }, [styles, isPrivateChat, isGroupChat]);
+        inputRef.current?.focus();
+      }}
+      styles={styles}
+    />
+  );
+  };
 
   if (!isMounted()) return null;
 
   return (
     <ScreenErrorBoundary screenName="ChatDetailScreen">
       <View style={styles.container}>
-        <SafeAreaView style={[styles.safeArea, safeArea.safeAreaStyle]} edges={['top']}>
+        <SafeAreaView style={[styles.safeArea, safeArea.safeAreaStyle]}>
           <ScreenBackButtonHandler action="navigate" />
 
           <ChatDetailHeader
@@ -906,7 +809,7 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
                   >
                     <Icon
                       name={isCurrentChatMuted ? "bell-off" : "bell-outline"}
-                      size={scaleSizeFunc(20)}
+                      size={20}
                       color={isCurrentChatMuted ? "#EF4444" : "#FFFFFF"}
                       style={styles.userMenuIcon}
                     />
@@ -923,7 +826,7 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
                 >
                   <Icon
                     name={isPeerBlocked ? 'lock-open' : 'block'}
-                    size={scaleSizeFunc(20)}
+                    size={20}
                     color={isPeerBlocked ? '#059669' : '#DC2626'}
                     style={styles.userMenuIcon}
                   />
@@ -931,7 +834,7 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
                     {isPeerBlocked ? 'Unblock User' : 'Block User'}
                   </Text>
                 </SoundTouchableOpacity>
-
+                
                 <SoundTouchableOpacity
                   style={styles.userMenuItem}
                   onPress={() => {
@@ -940,7 +843,7 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Icon name="delete-outline" size={scaleSizeFunc(20)} color="#DC2626" style={styles.userMenuIcon} />
+                  <Icon name="delete-outline" size={20} color="#DC2626" style={styles.userMenuIcon} />
                   <Text style={[styles.userMenuText, styles.userMenuTextDelete]}>
                     Delete Conversation
                   </Text>
@@ -950,94 +853,85 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
           )}
 
           <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
           >
-            <View style={{ flex: 1 }}>
-              <FlatList
-                  ref={flatListRef}
-                  data={displayMessages}
-                  renderItem={renderMessageItem}
-                  keyExtractor={item => item.id.toString()}
-                  extraData={displayMessages.length}
-                  contentContainerStyle={styles.messagesList}
-                  style={{ flex: 1 }}
-                  inverted={false}
-                  keyboardDismissMode="none"
-                  keyboardShouldPersistTaps="always"
-                  windowSize={10}
-                  maxToRenderPerBatch={10}
-                  updateCellsBatchingPeriod={50}
-                  removeClippedSubviews={Platform.OS === 'android'}
-                  scrollEventThrottle={16}
-                  onScroll={e => {
-                    const dist = e.nativeEvent.contentSize.height - e.nativeEvent.contentOffset.y - e.nativeEvent.layoutMeasurement.height;
-                    isNearBottomRef.current = dist < 100;
-                    setShowScrollToBottomButton(dist > 200);
-                  }}
-                  ListHeaderComponent={
-                    encryptionEnabled ? (
-                      <View style={styles.e2eeBannerContainer}>
-                        <View style={styles.e2eeBanner}>
-                          <Icon name="lock" size={scaleSizeFunc(12)} color="#FFFFFF" style={styles.e2eeLockIcon} />
-                          <Text style={styles.e2eeBannerText}>Messages are end-to-end encrypted</Text>
-                        </View>
-                      </View>
-                    ) : null
-                  }
-                  ListFooterComponent={
-                    isOtherUserTyping ? (
-                      <View style={[styles.typingIndicatorWrapper, { marginBottom: scaleSizeFunc(10) }]}>
-                        <TypingIndicator username={displayChat.name} />
-                      </View>
-                    ) : null
-                  }
-                  onContentSizeChange={() => {
-                    if (isNearBottomRef.current) {
-                      flatListRef.current?.scrollToEnd({ animated: true });
-                    }
-                  }}
-                  ListEmptyComponent={
-                    !isMessagesLoading ? (
-                      <View style={styles.emptyState}>
-                        <Text style={styles.emptyText}>No messages yet. Say hello!</Text>
-                      </View>
-                    ) : null
-                  }
-                />
-            </View>
-
-            <View
-              style={{
-                width: '100%',
-                backgroundColor: '#000000',
-                paddingBottom: insets.bottom || 0,
+            <FlatList
+              ref={flatListRef}
+              data={displayMessages}
+              renderItem={renderMessageItem}
+              keyExtractor={item => item.id.toString()}
+              contentContainerStyle={styles.messagesList}
+              style={{ flex: 1 }}
+              inverted={false}
+              onLayout={(event) => {
+                const { width, height, x, y } = event.nativeEvent.layout;
+                console.log('≡ƒôÉ [ChatDetailScreen] FlatList LAYOUT:', {
+                  width,
+                  height,
+                  x,
+                  y,
+                  messagesCount: displayMessages.length,
+                  userMessagesCount: displayMessages.filter(m => m.isUser).length,
+                  otherMessagesCount: displayMessages.filter(m => !m.isUser).length,
+                });
               }}
-              onLayout={e => setInputContainerHeight(e.nativeEvent.layout.height)}
-            >
-              <ChatDetailInput
-                message={message}
-                setMessage={setMessage}
-                onSendMessage={handleSendMessage}
-                onAttach={handleImagePicker}
-                onCamera={handleCameraLaunch}
-                disabled={isPeerBlocked || needsAcceptance}
-                needsAcceptance={needsAcceptance}
-                isPeerBlocked={isPeerBlocked}
-                replyingTo={replyingTo}
-                onCancelReply={() => setReplyingTo(null)}
-                selectedImage={selectedImage}
-                onClearImage={() => setSelectedImage(null)}
-                inputRef={inputRef as React.RefObject<TextInput>}
-                onTypingChange={handleTypingChange}
-                onBlur={handleBlur}
-                onSubmitEditing={handleSubmitEditing}
-                styles={styles}
-                currentUserId={(profile as any)?.account_id || (profile as any)?.id}
-                profile={profile}
-              />
-            </View>
+              onScroll={e => {
+                const dist = e.nativeEvent.contentSize.height - e.nativeEvent.contentOffset.y - e.nativeEvent.layoutMeasurement.height;
+                setShowScrollToBottomButton(dist > 200);
+              }}
+              ListHeaderComponent={
+                encryptionEnabled ? (
+                  <View style={styles.e2eeBannerContainer}>
+                    <View style={styles.e2eeBanner}>
+                      <Icon name="lock" size={12} color="#FFFFFF" style={styles.e2eeLockIcon} />
+                      <Text style={styles.e2eeBannerText}>Messages are end-to-end encrypted</Text>
+                    </View>
+                  </View>
+                ) : null
+              }
+              onContentSizeChange={() => {
+                if (isNearBottomRef.current) {
+                  flatListRef.current?.scrollToEnd({ animated: true });
+                }
+              }}
+              ListEmptyComponent={
+                !isMessagesLoading ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>No messages yet. Say hello!</Text>
+                  </View>
+                ) : null
+              }
+            />
+
+            {isOtherUserTyping && (
+              <View style={[styles.typingIndicatorWrapper, { marginBottom: scaleSize(10) }]}>
+                <TypingIndicator username={displayChat.name} />
+              </View>
+            )}
+
+            <ChatDetailInput
+              message={message}
+              setMessage={setMessage}
+              onSendMessage={handleSendMessage}
+              onAttach={handleImagePicker}
+              onCamera={handleCameraLaunch}
+              disabled={isPeerBlocked || needsAcceptance}
+              needsAcceptance={needsAcceptance}
+              isPeerBlocked={isPeerBlocked}
+              replyingTo={replyingTo}
+              onCancelReply={() => setReplyingTo(null)}
+              selectedImage={selectedImage}
+              onClearImage={() => setSelectedImage(null)}
+              inputRef={inputRef as React.RefObject<TextInput>}
+              onTypingChange={handleTypingChange}
+              onBlur={handleBlur}
+              onSubmitEditing={handleSubmitEditing}
+              styles={styles}
+              currentUserId={(profile as any)?.account_id || (profile as any)?.id}
+              profile={profile}
+            />
           </KeyboardAvoidingView>
 
           <ChatDetailModals
@@ -1058,20 +952,20 @@ const ChatDetailScreen: React.FC<ChatDetailScreenProps> = () => {
             logger={logger}
           />
 
-          {showScrollToBottomButton && !keyboardShown && (
+          {showScrollToBottomButton && (
             <SoundTouchableOpacity
               style={[
                 styles.scrollToBottomButton,
-                { bottom: inputContainerHeight + scaleSizeFunc(8) }
+                { bottom: keyboardShown ? keyboardHeight + scaleSize(80) : scaleSize(90) }
               ]}
-              onPress={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              onPress={() => flatListRef.current?.scrollToEnd()}
             >
-              <Icon name="chevron-double-down" size={scaleSizeFunc(20)} color="#000" />
+              <Icon name="chevron-double-down" size={20} color="#000" />
             </SoundTouchableOpacity>
           )}
         </SafeAreaView>
       </View>
-    </ScreenErrorBoundary >
+    </ScreenErrorBoundary>
   );
 };
 
@@ -1085,12 +979,13 @@ function createStyles(
     container: { flex: 1, backgroundColor: '#000000' },
     safeArea: { flex: 1 },
     messagesList: {
-      paddingHorizontal: getHorizontalSpacing(1.5),
-      paddingTop: getVerticalSpacing(1),
-      paddingBottom: getVerticalSpacing(4),
+      paddingHorizontal: getHorizontalSpacing(2),
+      paddingTop: getVerticalSpacing(2), // Add top padding to ensure first message is visible
+      paddingBottom: getVerticalSpacing(2),
       flexGrow: 1,
-      backgroundColor: '#000000',
+      backgroundColor: '#000000', // Black background to match global chat
       // CRITICAL: Don't set alignItems here - it prevents alignSelf from working on children
+      // Messages will align themselves using alignSelf: flex-start/flex-end
     },
     // Reply preview container above input - matching global chat
     replyPreviewContainer: {
@@ -1125,19 +1020,15 @@ function createStyles(
       marginLeft: getHorizontalSpacing(1),
     },
     // Input field styles - matching global chat
-    messageInputContainer: {
-      backgroundColor: '#000000',
-      width: '100%',
-    },
     inputRow: {
       flexDirection: 'row',
-      paddingHorizontal: getHorizontalSpacing(1.5),
-      paddingVertical: getVerticalSpacing(1),
+      paddingHorizontal: getHorizontalSpacing(2),
+      paddingVertical: getVerticalSpacing(1.5),
       backgroundColor: '#000000',
       borderTopWidth: 1,
       borderTopColor: 'rgba(255, 255, 255, 0.1)',
       alignItems: 'flex-end',
-      minHeight: scaleSize(50),
+      minHeight: scaleSize(60),
     },
     inputWrapper: {
       flex: 1,
@@ -1195,15 +1086,6 @@ function createStyles(
       fontSize: scaleFont(12),
       lineHeight: scaleFont(16)
     },
-    typingIndicatorWrapper: {
-      paddingHorizontal: getHorizontalSpacing(2),
-      backgroundColor: 'transparent',
-    },
-    typingIndicatorStyle: {
-      color: '#9CA3AF',
-      fontSize: scaleFont(12),
-      fontStyle: 'italic',
-    },
     emptyState: {
       flex: 1,
       alignItems: 'center',
@@ -1221,7 +1103,7 @@ function createStyles(
       fontSize: scaleFont(14),
       textAlign: 'center'
     },
-    typingContainer: {
+    typingIndicator: {
       flexDirection: 'row',
       paddingHorizontal: getHorizontalSpacing(2),
       paddingBottom: getVerticalSpacing(1),
@@ -1253,26 +1135,26 @@ function createStyles(
       justifyContent: 'center',
       elevation: 5,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: scaleSize(2) },
+      shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.25,
-      shadowRadius: scaleSize(3.84),
+      shadowRadius: 3.84,
       zIndex: 99,
     },
     // Message item styles for ChatMessageItem - matching global chat styling EXACTLY
-    messageContainer: {
-      marginBottom: getVerticalSpacing(1.5),
+    messageContainer: { 
+      marginBottom: getVerticalSpacing(1.5), 
       maxWidth: '100%', // Match global chat - use 100% like global chat
       backgroundColor: 'transparent',
       width: '100%', // Match global chat - use 100% width
     },
-    userMessage: {
-      alignSelf: 'flex-end',
+    userMessage: { 
+      alignSelf: 'flex-end', 
       alignItems: 'flex-end',
       marginLeft: 'auto',
       // Match global chat exactly
     },
-    otherMessage: {
-      alignSelf: 'flex-start',
+    otherMessage: { 
+      alignSelf: 'flex-start', 
       alignItems: 'flex-start',
       marginRight: 'auto',
       // Match global chat exactly
@@ -1284,18 +1166,18 @@ function createStyles(
       maxWidth: '75%',
       marginBottom: scaleSize(4),
     },
-    userBubble: {
-      backgroundColor: '#9333EA',
+    userBubble: { 
+      backgroundColor: '#9333EA', 
       borderTopRightRadius: scaleSize(4),
     },
-    otherBubble: {
-      backgroundColor: '#40444B',
+    otherBubble: { 
+      backgroundColor: '#40444B', 
       borderTopLeftRadius: scaleSize(4),
     },
-    messageText: {
-      color: '#FFF',
-      fontSize: scaleFont(14),
-      lineHeight: scaleFont(20)
+    messageText: { 
+      color: '#FFF', 
+      fontSize: scaleFont(14), 
+      lineHeight: scaleFont(20) 
     },
     userMessageText: {
       color: '#FFFFFF',
@@ -1303,10 +1185,10 @@ function createStyles(
     otherMessageText: {
       color: '#FFFFFF',
     },
-    timestamp: {
-      color: 'rgba(255,255,255,0.6)',
-      fontSize: scaleFont(10),
-      marginTop: getVerticalSpacing(0.5)
+    timestamp: { 
+      color: 'rgba(255,255,255,0.6)', 
+      fontSize: scaleFont(10), 
+      marginTop: getVerticalSpacing(0.5) 
     },
     userTimestamp: {
       color: 'rgba(255,255,255,0.6)',
@@ -1336,8 +1218,8 @@ function createStyles(
     },
     messageFrame: {
       position: 'absolute',
-      top: -scaleSize(1),
-      left: -scaleSize(1),
+      top: -1,
+      left: -1,
       width: scaleSize(34),
       height: scaleSize(34),
       zIndex: 3,
@@ -1528,9 +1410,7 @@ function createStyles(
     },
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      justifyContent: 'center',
-      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
     // Image preview modal styles
     imagePreviewModal: {
@@ -1558,23 +1438,17 @@ function createStyles(
     modalContent: {
       width: '90%',
       maxHeight: '80%',
-      height: '60%', // Fixed height as a base for scrolling
       backgroundColor: '#36393F',
       borderRadius: scaleSize(16),
       overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
     },
     modalHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: getHorizontalSpacing(2),
-      paddingVertical: getVerticalSpacing(2),
+      padding: getHorizontalSpacing(2),
       borderBottomWidth: 1,
       borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-      backgroundColor: '#2C2F33',
-      minHeight: scaleSize(50), // Ensure header has height even without title
     },
     modalTitle: {
       fontSize: scaleFont(20),
@@ -1655,29 +1529,6 @@ function createStyles(
       fontSize: scaleFont(14),
       fontWeight: '600',
       marginLeft: getHorizontalSpacing(0.75),
-    },
-    dateSeparator: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginVertical: getVerticalSpacing(2),
-      paddingHorizontal: getHorizontalSpacing(2),
-    },
-    dateSeparatorLine: {
-      flex: 1,
-      height: 1,
-      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    },
-    dateSeparatorCapsule: {
-      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-      paddingHorizontal: getHorizontalSpacing(1.5),
-      paddingVertical: scaleSize(4),
-      borderRadius: scaleSize(12),
-      marginHorizontal: getHorizontalSpacing(1),
-    },
-    dateSeparatorText: {
-      color: '#9CA3AF',
-      fontSize: scaleFont(12),
-      fontWeight: '600',
     },
   });
 }

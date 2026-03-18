@@ -8,7 +8,6 @@ import {
   View,
   FlatList,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   Text,
   Alert,
@@ -16,6 +15,7 @@ import {
   Keyboard,
   Modal,
 } from 'react-native';
+import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import SoundTouchableOpacity from '../../../core/components/SoundTouchableOpacity';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeArea } from '../../../hooks/useSafeArea';
@@ -97,6 +97,7 @@ const ChatScreen: React.FC = () => {
     scaleFont,
     getVerticalSpacing,
     getHorizontalSpacing,
+    headerHeight: respHeaderHeight,
   } = useStandardResponsive();
 
   const route = useRoute();
@@ -119,19 +120,33 @@ const ChatScreen: React.FC = () => {
   const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
   const [muteLoading, setMuteLoading] = useState(false);
+  const bottomInset = insets.bottom || 0;
+  const listPaddingBottom = useMemo(
+    () => bottomInset + (Platform.OS === 'ios' ? keyboardHeight : 0),
+    [bottomInset, keyboardHeight]
+  );
+  const messageListContentStyle = useMemo(
+    () => [styles.messageList, { paddingBottom: listPaddingBottom }],
+    [listPaddingBottom]
+  );
+  const scrollIndicatorInsets = useMemo(() => ({ bottom: listPaddingBottom }), [listPaddingBottom]);
+  const stickyOffset = useMemo(
+    () => ({ opened: bottomInset, closed: bottomInset }),
+    [bottomInset]
+  );
 
   const flatListRef = useRef<FlatList>(null);
   const timeoutRefs = useRef<Set<NodeJS.Timeout>>(new Set());
 
   // Calculate available height for chat messages
-  const headerHeight = useMemo(() => 60, []);
+  const headerHeight = useMemo(() => respHeaderHeight || 60, [respHeaderHeight]);
   const availableHeight = useMemo(() => {
-    const safeAreaTop = insets.top;
-    const safeAreaBottom = insets.bottom;
-    const totalSafeArea = safeAreaTop + safeAreaBottom;
+    // subtract only what's necessary
     const keyboardOffset = keyboardHeight > 0 ? keyboardHeight : 0;
-    return screenHeight - headerHeight - totalSafeArea - keyboardOffset;
-  }, [screenHeight, headerHeight, insets.top, insets.bottom, keyboardHeight]);
+    // On Android, if not using translucent edges in SafeAreaView, we must account for them here
+    // But safely. Use window height minus header minus keyboard.
+    return screenHeight - headerHeight - keyboardOffset;
+  }, [screenHeight, headerHeight, keyboardHeight]);
 
   // Keyboard listeners
   useEffect(() => {
@@ -139,6 +154,8 @@ const ChatScreen: React.FC = () => {
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (event) => {
         setKeyboardHeight(event.endCoordinates.height);
+        // Scroll to bottom when keyboard opens
+        setTimeout(() => scrollToBottom(), 100);
       }
     );
     const keyboardWillHide = Keyboard.addListener(
@@ -482,11 +499,8 @@ const ChatScreen: React.FC = () => {
   return (
     <ScreenErrorBoundary screenName="ChatScreen">
       <ScreenBackButtonHandler action="navigate" />
-      <View style={{ flex: 1, width: '100%', height: '100%', backgroundColor: '#000000' }}>
-        <SafeAreaView
-          style={[styles.container, { width: '100%', height: '100%' }]}
-          edges={Platform.OS === 'ios' ? ['top'] : []}
-        >
+      <View style={{ flex: 1, width: '100%', backgroundColor: '#000000' }}>
+        <SafeAreaView style={styles.container}>
           <ChatDetailHeader
             chat={chatInfo}
             conversation={conversationInfo}
@@ -515,12 +529,8 @@ const ChatScreen: React.FC = () => {
             />
           )}
 
-          <KeyboardAvoidingView
-            style={[styles.keyboardAvoid, { height: availableHeight }]}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + headerHeight : 0}
-          >
-            <View style={{ flex: 1, height: availableHeight }}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flex: 1 }}>
               <FlatList
                 ref={flatListRef}
                 data={currentMessages}
@@ -532,14 +542,12 @@ const ChatScreen: React.FC = () => {
                   windowSize: 21,
                   removeClippedSubviews: Platform.OS === 'android',
                 })}
-                contentContainerStyle={[
-                  styles.messageList,
-                  { minHeight: availableHeight - 80 }
-                ]}
+                contentContainerStyle={messageListContentStyle}
+                scrollIndicatorInsets={scrollIndicatorInsets}
                 style={{ flex: 1 }}
                 onContentSizeChange={scrollToBottom}
                 ListEmptyComponent={
-                  <View style={[styles.emptyContainer, { minHeight: availableHeight - 80 }]}>
+                  <View style={styles.emptyContainer}>
                     <Text style={styles.emptyText}>
                       {isChatDisabled
                         ? 'Start a conversation by sending a message'
@@ -554,22 +562,24 @@ const ChatScreen: React.FC = () => {
                 }
               />
 
-              <ChatInput
-                onSend={handleSendMessage}
-                onTyping={handleTyping}
-                onTypingStop={handleTypingStop}
-                disabled={isChatDisabled}
-                isSending={isSendingMessage}
-                placeholder={
-                  isChatDisabled
-                    ? currentConversation?.status === 'pending'
-                      ? 'Accept chat to start messaging'
-                      : 'Chat not available'
-                    : 'Type a message...'
-                }
-              />
+              <KeyboardStickyView offset={stickyOffset}>
+                <ChatInput
+                  onSend={handleSendMessage}
+                  onTyping={handleTyping}
+                  onTypingStop={handleTypingStop}
+                  disabled={isChatDisabled}
+                  isSending={isSendingMessage}
+                  placeholder={
+                    isChatDisabled
+                      ? currentConversation?.status === 'pending'
+                        ? 'Accept chat to start messaging'
+                        : 'Chat not available'
+                      : 'Type a message...'
+                  }
+                />
+              </KeyboardStickyView>
             </View>
-          </KeyboardAvoidingView>
+          </View>
 
           <ChatDetailModals
             showImagePreview={showImagePreview}
@@ -606,7 +616,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000', // Dark theme
     width: '100%',
-    height: '100%',
   },
   header: {
     flexDirection: 'row',

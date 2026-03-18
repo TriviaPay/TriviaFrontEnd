@@ -11,6 +11,8 @@ import { walletApi } from '../store/api/walletApi';
 import { leaderboardApi } from '../store/api/leaderboardApi';
 import { chatApi } from '../store/api/chatApi';
 import { shopApi } from '../store/api/shopApi';
+import { dailyLoginApi } from '../store/api/dailyLoginApi';
+import { fetchUserGems } from '../store/slices/shopSlice';
 import {
   fetchProfileSummary,
   fetchOwnedAvatars as fetchSliceAvatars,
@@ -33,13 +35,15 @@ class PrefetchService {
     try {
       logger.debug('Starting critical data prefetch...', 'PREFETCH');
 
-      // Show loader for initial data fetch
+      // Background prefetch should not show blocking loader
+      /*
       store.dispatch(
         showGlobalLoader({
           message: 'Checking your progress...',
           operation: 'prefetch_critical',
         })
       );
+      */
 
       // CRITICAL: We must AWAIT these dispatches so the promise resolves ONLY when data is ready
       // We use Promise.allSettled to ensure one failure doesn't block the others
@@ -52,9 +56,26 @@ class PrefetchService {
         store.dispatch(
           walletApi.endpoints.getWalletBalance.initiate(undefined, { forceRefetch: true })
         ),
+
+        // 3. Country Data (Critical for Signup Step 2)
+        // Note: fetchCountries is a thunk in countrySlice
+        (async () => {
+          try {
+            const { fetchCountries } = require('../store/countrySlice');
+            await store.dispatch(fetchCountries() as any);
+          } catch (e) {
+            logger.warn('Failed to prefetch countries', 'PREFETCH', e);
+          }
+        })(),
       ]);
 
       // Non-blocking prefetches (Fire and forget)
+      // 2b. User gems + daily login (Critical for daily bonus - ensures correct gem count on initial open)
+      store.dispatch(fetchUserGems() as any);
+      store.dispatch(
+        dailyLoginApi.endpoints.getDailyLoginStatus.initiate(undefined, { forceRefetch: true })
+      );
+
       // 3. Trivia Status
       store.dispatch(
         triviaApi.endpoints.getFreeModeStatus.initiate(undefined, { forceRefetch: true })

@@ -4475,10 +4475,10 @@ const TriviaScreen: React.FC = () => {
                           onPress={() => handleSubmit()}
                           disabled={!selectedAnswer}
                           style={{
-                            width: '80%',
-                            height: scaleSize(50),
-                            borderRadius: scaleSize(25),
-                            overflow: 'hidden',
+                            width: scaleSize(120),
+                            height: scaleSize(48),
+                            alignItems: 'center',
+                            justifyContent: 'center',
                             opacity: selectedAnswer ? 1 : 0.5,
                           }}
                         >
@@ -4490,18 +4490,8 @@ const TriviaScreen: React.FC = () => {
                               justifyContent: 'center',
                               alignItems: 'center',
                             }}
-                            resizeMode="stretch"
+                            resizeMode="contain"
                           >
-                            <Text
-                              style={{
-                                color: 'white',
-                                fontSize: scaleSize(18),
-                                fontWeight: 'bold',
-                                fontFamily: 'Baloo2',
-                              }}
-                            >
-                              SUBMIT ANSWER
-                            </Text>
                           </ImageBackground>
                         </SoundTouchableOpacity>
                       </Animated.View>

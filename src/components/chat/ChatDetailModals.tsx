@@ -5,7 +5,7 @@
  */
 
 import React, { memo } from 'react';
-import { View, Text, Modal, Image, StyleSheet } from 'react-native';
+import { View, Text, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import SoundTouchableOpacity from '../../core/components/SoundTouchableOpacity';
@@ -26,7 +26,6 @@ interface ChatDetailModalsProps {
   onUnblockUser: (userId: number) => Promise<void>;
 
   styles: any;
-  dispatch: any;
   logger: any;
 }
 
@@ -39,7 +38,6 @@ const ChatDetailModals: React.FC<ChatDetailModalsProps> = memo(({
   onCloseBlockedUsers,
   onUnblockUser,
   styles,
-  dispatch,
   logger,
 }) => {
   return (
@@ -54,8 +52,12 @@ const ChatDetailModals: React.FC<ChatDetailModalsProps> = memo(({
         <View style={styles.imagePreviewModal}>
           <SafeAreaView style={styles.imagePreviewSafeArea}>
             <View style={styles.imagePreviewHeader}>
-              <SoundTouchableOpacity onPress={onCloseImagePreview}>
-                <Icon name="close" size={24} color="#FFFFFF" />
+              <SoundTouchableOpacity onPress={onCloseImagePreview} style={{ alignSelf: 'flex-end', padding: 10 }}>
+                <Image
+                  source={require('../../../assets/common/closeIcon.png')}
+                  style={{ width: 24, height: 24 }}
+                  resizeMode="contain"
+                />
               </SoundTouchableOpacity>
             </View>
 
@@ -81,13 +83,16 @@ const ChatDetailModals: React.FC<ChatDetailModalsProps> = memo(({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Blocked Users</Text>
+            <View style={[styles.modalHeader, { justifyContent: 'flex-end', borderBottomWidth: 0, backgroundColor: 'transparent' }]}>
               <SoundTouchableOpacity
                 onPress={onCloseBlockedUsers}
                 style={styles.modalCloseButton}
               >
-                <Icon name="close" size={24} color="#FFFFFF" />
+                <Image
+                  source={require('../../../assets/common/closeIcon.png')}
+                  style={{ width: 24, height: 24 }}
+                  resizeMode="contain"
+                />
               </SoundTouchableOpacity>
             </View>
 

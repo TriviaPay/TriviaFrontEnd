@@ -10,6 +10,8 @@ import { logger } from './Logger';
 class PusherService {
   private pusher: Pusher | null = null;
   private channels: Map<string, any> = new Map();
+  private subscriptionPromises: Map<string, Promise<any>> = new Map();
+  private callbacks: Map<string, Map<string, Array<(data: any) => void>>> = new Map();
 
   /**
    * Initialize Pusher
@@ -45,14 +47,62 @@ class PusherService {
   async subscribe(channelName: string, eventName: string, callback: (data: any) => void) {
     if (!this.pusher) return;
 
+    // Register callback
+    let channelCallbacks = this.callbacks.get(channelName);
+    if (!channelCallbacks) {
+      channelCallbacks = new Map();
+      this.callbacks.set(channelName, channelCallbacks);
+    }
+
+    let eventCallbacks = channelCallbacks.get(eventName);
+    if (!eventCallbacks) {
+      eventCallbacks = [];
+      channelCallbacks.set(eventName, eventCallbacks);
+    }
+
+    if (!eventCallbacks.includes(callback)) {
+      eventCallbacks.push(callback);
+    }
+
     try {
-      const channel = await this.pusher.subscribe({ channelName });
+      // If already subscribed, we're done (callback is registered)
+      if (this.channels.has(channelName)) {
+        return;
+      }
 
-      await channel.bind({ eventName, onEvent: callback });
+      // If a subscription is currently in progress, wait for it
+      if (this.subscriptionPromises.has(channelName)) {
+        await this.subscriptionPromises.get(channelName);
+        return;
+      }
 
+      // Start new subscription
+      const subPromise = this.pusher.subscribe({
+        channelName,
+        onEvent: (event) => {
+          // Trigger all registered callbacks for this event
+          const registeredCallbacks = this.callbacks.get(channelName)?.get(event.eventName);
+          if (registeredCallbacks) {
+            registeredCallbacks.forEach(cb => {
+              try {
+                cb(event.data);
+              } catch (e) {
+                logger.error(`Error in Pusher callback for ${eventName}`, 'PUSHER', e);
+              }
+            });
+          }
+        }
+      });
+
+      this.subscriptionPromises.set(channelName, subPromise);
+
+      const channel = await subPromise;
       this.channels.set(channelName, channel);
+      this.subscriptionPromises.delete(channelName);
+
       logger.info(`Subscribed to ${channelName}`, 'PUSHER');
     } catch (error) {
+      this.subscriptionPromises.delete(channelName);
       logger.error(`Failed to subscribe to ${channelName}`, 'PUSHER', error);
     }
   }
@@ -64,9 +114,13 @@ class PusherService {
     if (!this.pusher) return;
 
     try {
-      await this.pusher.unsubscribe({ channelName });
-      this.channels.delete(channelName);
-      logger.info(`Unsubscribed from ${channelName}`, 'PUSHER');
+      this.callbacks.delete(channelName);
+
+      if (this.channels.has(channelName)) {
+        await this.pusher.unsubscribe({ channelName });
+        this.channels.delete(channelName);
+        logger.info(`Unsubscribed from ${channelName}`, 'PUSHER');
+      }
     } catch (error) {
       logger.error(`Failed to unsubscribe from ${channelName}`, 'PUSHER', error);
     }

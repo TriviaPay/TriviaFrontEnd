@@ -42,8 +42,8 @@ import {
   handleClosePopup,
   updateRewards,
 } from '../store/dailyRewardsSlice';
-// Use TriviaPay sound manager (expo-av based)
-import soundManager from '../lib/audio/sound-manager';
+// Use Safe Audio Manager (react-native-sound based)
+import audioManager from '../lib/audio/AudioManagerSafe';
 
 // Sound Hook - Replaces SoundContext
 export const useSound = () => {
@@ -126,8 +126,8 @@ export const useSound = () => {
   const playNotificationSound = (name: string) => {
     // CRITICAL: Use safe audio manager that NEVER crashes
     try {
-      if (soundManager && typeof soundManager.playNotification === 'function') {
-        soundManager.playNotification(name).catch((error: any) => {
+      if (audioManager && typeof audioManager.playSound === 'function') {
+        audioManager.playSound(name).catch((error: any) => {
           // Silent fail - audio is optional
         });
       }
@@ -141,8 +141,8 @@ export const useSound = () => {
     // CRITICAL: Use safe audio manager that NEVER crashes
     if (soundState.universalTapEnabled) {
       try {
-        if (soundManager && typeof soundManager.playSound === 'function') {
-          soundManager.playSound('click').catch((error: any) => {
+        if (audioManager && typeof audioManager.playSound === 'function') {
+          audioManager.playSound('button').catch((error: any) => {
             // Silent fail - audio is optional
           });
         }

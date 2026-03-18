@@ -126,6 +126,7 @@ export const DIMENSIONS = {
   BUTTON_HEIGHT: 48,
   INPUT_HEIGHT: 48,
   HEADER_HEIGHT: 56,
+  TAB_BAR_HEIGHT: 60,
 } as const;
 
 // List/FlatList defaults

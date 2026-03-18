@@ -11,6 +11,7 @@ interface TimerState {
   prizePool: number; // Keep for backward compatibility
   bronzePrizePool: number;
   silverPrizePool: number;
+  dailyTriviaCoins: number;
   isLoading: boolean;
   error: string | null;
   lastFetched: number | null;
@@ -21,6 +22,7 @@ const initialState: TimerState = {
   prizePool: 0,
   bronzePrizePool: 0,
   silverPrizePool: 0,
+  dailyTriviaCoins: 0,
   isLoading: false,
   error: null,
   lastFetched: null,
@@ -79,6 +81,7 @@ const timerSlice = createSlice({
         }
 
         state.lastFetched = Date.now();
+        state.dailyTriviaCoins = action.payload.daily_trivia_coins || 0;
         state.error = null;
       })
       .addCase(fetchNextDraw.rejected, (state, action) => {

@@ -63,6 +63,14 @@ export async function initPusher(userToken: string): Promise<void> {
         channelName: string,
         socketId: string
       ): Promise<PusherAuthorizerResult> => {
+        // Skip auth for public channels (those not starting with private- or presence-)
+        if (!channelName.startsWith('private-') && !channelName.startsWith('presence-')) {
+          if (__DEV__) {
+            logger.debug(`⏩ Skipping authorization for public channel: ${channelName}`, 'PUSHER');
+          }
+          return { auth: '', channel_data: undefined, shared_secret: undefined };
+        }
+
         // Call your backend /pusher/auth endpoint with Authorization header
         try {
           // Backend expects form-encoded data, not JSON
@@ -172,7 +180,7 @@ export async function initPusher(userToken: string): Promise<void> {
           }, 500);
         }
       },
-      onError: (message: string, code: number, error: any) => {
+      onError: (message: string, code: Number, error: any) => {
         // Only log non-network errors in production, or all errors in dev
         const isNetworkError =
           message.includes('UnknownHostException') ||
@@ -190,7 +198,7 @@ export async function initPusher(userToken: string): Promise<void> {
           logger.error('Error', 'PUSHER', `❌ Pusher error: ${message} (code: ${code})`, error);
         }
       },
-      onSubscriptionSucceeded: (channelName: string, data: any) => {
+      onSubscriptionSucceeded: (channelName: string) => {
         if (__DEV__) {
           logger.debug(`✅ Subscribed to Pusher channel: ${channelName}`, 'PUSHER');
         }

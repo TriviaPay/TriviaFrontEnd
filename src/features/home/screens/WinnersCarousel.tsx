@@ -751,14 +751,7 @@ const WinnersCarousel: React.FC<WinnersCarouselProps> = React.memo(({ onViewAll,
               const totalWinners = formattedWinners.length;
               const numberOfDots = Math.min(totalWinners, maxDots);
 
-              let activeDotIndex: number;
-              if (totalWinners <= maxDots) {
-                activeDotIndex = currentSlide;
-              } else {
-                const winnersPerDot = totalWinners / numberOfDots;
-                activeDotIndex = Math.floor(currentSlide / winnersPerDot);
-                activeDotIndex = Math.min(activeDotIndex, numberOfDots - 1);
-              }
+              const activeDotIndex = currentSlide % numberOfDots;
 
               return Array.from({ length: numberOfDots }, (_, i) => (
                 <View

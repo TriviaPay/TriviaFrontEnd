@@ -4,8 +4,8 @@
  * Single Responsibility: Message rendering
  */
 
-import React, { memo, useRef, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, PanResponder, Animated, Platform } from 'react-native';
+import React, { memo, useRef } from 'react';
+import { View, Text, Image, PanResponder, Animated, Platform } from 'react-native';
 import LottieView from 'lottie-react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import OptimizedImage from '../OptimizedImage';
@@ -23,31 +23,33 @@ const isLottieFile = (url: string | undefined | null): boolean => {
 };
 import { scaleSize } from '../../utils/scaleSize';
 
-export interface ChatMessageItemProps {
-    item: {
+export interface UIMessage {
+    id: number;
+    text?: string;
+    sender: string;
+    timestamp: string;
+    status?: 'sent' | 'delivered' | 'read' | 'pending';
+    isUser: boolean;
+    isSystem?: boolean;
+    isNotification?: boolean;
+    image?: string;
+    profile_pic?: string | null;
+    avatar_url?: string | null;
+    frame_url?: string | null;
+    badge?: {
+        image_url?: string;
+        name?: string;
+    } | null;
+    reply_to?: {
         id: number;
-        text?: string;
+        message: string;
         sender: string;
-        timestamp: string;
-        status?: 'sent' | 'delivered' | 'read' | 'pending';
-        isUser: boolean;
-        isSystem?: boolean;
-        isNotification?: boolean;
-        image?: string;
-        profile_pic?: string | null; // Allow null
-        avatar_url?: string | null;
-        frame_url?: string | null;
-        badge?: {
-            image_url?: string;
-            name?: string;
-        } | null;
-        reply_to?: {
-            id: number;
-            message: string;
-            sender: string;
-        } | null;
-        level?: number | null;
-    };
+    } | null;
+    level?: number | null;
+}
+
+export interface ChatMessageItemProps {
+    item: UIMessage;
     isPrivateChat: boolean;
     isGroupChat: boolean;
     styles: any;
@@ -107,7 +109,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = memo(({
                     gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2;
             },
             onPanResponderGrant: () => {
-                translateX.setOffset(translateX._value);
+                translateX.setOffset((translateX as any)._value || 0);
             },
             onPanResponderMove: (_, gestureState) => {
                 // Only allow right swipe (positive dx)
@@ -134,18 +136,6 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = memo(({
         })
     ).current;
 
-    // DEBUG: Log message alignment info
-    useEffect(() => {
-        console.log('🔍 [ChatMessageItem] DEBUG:', {
-            messageId: item.id,
-            sender: item.sender,
-            isUser: item.isUser,
-            isEncrypted,
-            messageContainerStyle: styles.messageContainer,
-            userMessageStyle: styles.userMessage,
-            otherMessageStyle: styles.otherMessage,
-        });
-    }, [item.id, item.isUser, item.sender, isEncrypted, styles.messageContainer, styles.userMessage, styles.otherMessage]);
 
     return (
         <Animated.View
@@ -158,19 +148,6 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = memo(({
                 },
             ]}
             {...panResponder.panHandlers}
-            onLayout={(event) => {
-                const { width, height, x, y } = event.nativeEvent.layout;
-                console.log('📐 [ChatMessageItem] LAYOUT:', {
-                    messageId: item.id,
-                    isUser: item.isUser,
-                    sender: item.sender,
-                    width,
-                    height,
-                    x,
-                    y,
-                    alignSelf: item.isUser ? 'flex-end' : 'flex-start',
-                });
-            }}
         >
             {/* Profile picture, avatar, frame, and badge for other users' messages */}
             {!item.isUser && !isEncrypted && (
@@ -188,7 +165,6 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = memo(({
                                         autoPlay
                                         loop
                                         renderMode="SOFTWARE"
-                                        cacheStrategy="weak"
                                         cacheComposition={false}
                                         enableMergePathsAndroidForKitKatAndAbove={true}
                                         useNativeLooping={false}
@@ -215,7 +191,6 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = memo(({
                                     autoPlay
                                     loop
                                     renderMode="SOFTWARE"
-                                    cacheStrategy="weak"
                                     cacheComposition={false}
                                     enableMergePathsAndroidForKitKatAndAbove={true}
                                     useNativeLooping={false}
@@ -236,7 +211,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = memo(({
 
 
                             {/* Level Star Overlay - Inside Container for correct positioning */}
-                            {item.level && item.level > 0 && (
+                            {(item.level ?? 0) > 0 && (
                                 <View
                                     style={{
                                         position: 'absolute',
@@ -288,7 +263,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = memo(({
                                 resizeMode="cover"
                             />
                             {/* Level Star Overlay - Inside Container for correct positioning */}
-                            {item.level && item.level > 0 && (
+                            {(item.level ?? 0) > 0 && (
                                 <View
                                     style={{
                                         position: 'absolute',
@@ -357,88 +332,88 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = memo(({
 
             {/* Message bubble with level overlay */}
             <View style={{ position: 'relative' }}>
-            <SoundTouchableOpacity
-                style={[
-                    isEncrypted ? styles.encryptedBubble : styles.messageBubble,
-                    !isEncrypted && (item.isUser ? styles.userBubble : styles.otherBubble)
-                ]}
-                onLongPress={handleLongPress}
-                activeOpacity={0.9}
-                delayLongPress={500}
-            >
-                {/* Show sender name in group chats ONLY if profile/avatar is missing, as fallback */}
-                {!item.isUser && isGroupChat && !isEncrypted && !item.profile_pic && !item.avatar_url && (
-                    <Text style={styles.senderName}>{item.sender}</Text>
-                )}
+                <SoundTouchableOpacity
+                    style={[
+                        isEncrypted ? styles.encryptedBubble : styles.messageBubble,
+                        !isEncrypted && (item.isUser ? styles.userBubble : styles.otherBubble)
+                    ]}
+                    onLongPress={handleLongPress}
+                    activeOpacity={0.9}
+                    delayLongPress={500}
+                >
+                    {/* Show sender name in group chats ONLY if profile/avatar is missing, as fallback */}
+                    {!item.isUser && isGroupChat && !isEncrypted && !item.profile_pic && !item.avatar_url && (
+                        <Text style={styles.senderName}>{item.sender}</Text>
+                    )}
 
-                {/* Reply preview - WhatsApp style */}
-                {item.reply_to && (
-                    <View style={[
-                        styles.replyPreview,
-                        item.isUser ? styles.replyPreviewUser : styles.replyPreviewOther
-                    ]}>
-                        <View style={styles.replyPreviewBubbleContent}>
-                            <Text style={[
-                                styles.replyPreviewBubbleSender,
-                                item.isUser ? styles.replyPreviewSenderUser : styles.replyPreviewSenderOther
-                            ]}>
-                                {item.reply_to.sender}
-                            </Text>
-                            <Text style={styles.replyPreviewBubbleMessage} numberOfLines={2}>
-                                {item.reply_to.message}
-                            </Text>
-                        </View>
-                    </View>
-                )}
-
-                {item.text ? (
-                    <View style={[
-                        styles.messageContentContainer,
-                        isEncrypted && styles.encryptedTextContainer
-                    ]}>
-                        <Text style={[
-                            styles.messageText,
-                            isEncrypted ? styles.encryptedMessageText : (item.isUser ? styles.userMessageText : styles.otherMessageText)
+                    {/* Reply preview - WhatsApp style */}
+                    {item.reply_to && (
+                        <View style={[
+                            styles.replyPreview,
+                            item.isUser ? styles.replyPreviewUser : styles.replyPreviewOther
                         ]}>
-                            {encryptedText}
-                        </Text>
-
-                        {/* Tick marks BESIDE text inside bubble (WhatsApp style) - only for user messages in private chat */}
-                        {item.isUser && isPrivateChat && !isEncrypted && (
-                            <View style={styles.statusIconContainer}>
-                                {item.status === 'read' ? (
-                                    <Icon name="check-all" size={14} color="#4FC3F7" />
-                                ) : item.status === 'delivered' ? (
-                                    <Icon name="check-all" size={14} color="rgba(255, 255, 255, 0.7)" />
-                                ) : (
-                                    <Icon name="check" size={14} color="rgba(255, 255, 255, 0.7)" />
-                                )}
+                            <View style={styles.replyPreviewBubbleContent}>
+                                <Text style={[
+                                    styles.replyPreviewBubbleSender,
+                                    item.isUser ? styles.replyPreviewSenderUser : styles.replyPreviewSenderOther
+                                ]}>
+                                    {item.reply_to.sender}
+                                </Text>
+                                <Text style={styles.replyPreviewBubbleMessage} numberOfLines={2}>
+                                    {item.reply_to.message}
+                                </Text>
                             </View>
-                        )}
+                        </View>
+                    )}
 
-                        {isEncrypted && (
-                            <View style={styles.encryptionIndicator}>
-                                <Icon name="lock" size={12} color="rgba(255, 255, 255, 0.7)" />
-                            </View>
-                        )}
-                    </View>
-                ) : null}
+                    {item.text ? (
+                        <View style={[
+                            styles.messageContentContainer,
+                            isEncrypted && styles.encryptedTextContainer
+                        ]}>
+                            <Text style={[
+                                styles.messageText,
+                                isEncrypted ? styles.encryptedMessageText : (item.isUser ? styles.userMessageText : styles.otherMessageText)
+                            ]}>
+                                {encryptedText}
+                            </Text>
 
-                {item.image && typeof item.image === 'string' && item.image.trim().length > 0 && item.image !== 'null' ? (
-                    <SoundTouchableOpacity
-                        onPress={() => {
-                            dispatch(setSelectedImage(item.image!));
-                            dispatch(setShowImagePreview(true));
-                        }}
-                        style={styles.messageImageContainer}
-                    >
-                        <OptimizedImage source={{ uri: item.image }} style={styles.messageImage} resizeMode="cover" />
-                    </SoundTouchableOpacity>
-                ) : null}
-            </SoundTouchableOpacity>
-                
+                            {/* Tick marks BESIDE text inside bubble (WhatsApp style) - only for user messages in private chat */}
+                            {item.isUser && isPrivateChat && !isEncrypted && (
+                                <View style={styles.statusIconContainer}>
+                                    {item.status === 'read' ? (
+                                        <Icon name="check-all" size={14} color="#4FC3F7" />
+                                    ) : item.status === 'delivered' ? (
+                                        <Icon name="check-all" size={14} color="rgba(255, 255, 255, 0.7)" />
+                                    ) : (
+                                        <Icon name="check" size={14} color="rgba(255, 255, 255, 0.7)" />
+                                    )}
+                                </View>
+                            )}
+
+                            {isEncrypted && (
+                                <View style={styles.encryptionIndicator}>
+                                    <Icon name="lock" size={12} color="rgba(255, 255, 255, 0.7)" />
+                                </View>
+                            )}
+                        </View>
+                    ) : null}
+
+                    {item.image && typeof item.image === 'string' && item.image.trim().length > 0 && item.image !== 'null' ? (
+                        <SoundTouchableOpacity
+                            onPress={() => {
+                                dispatch(setSelectedImage(item.image!));
+                                dispatch(setShowImagePreview(true));
+                            }}
+                            style={styles.messageImageContainer}
+                        >
+                            <OptimizedImage source={{ uri: item.image }} style={styles.messageImage} resizeMode="cover" />
+                        </SoundTouchableOpacity>
+                    ) : null}
+                </SoundTouchableOpacity>
+
                 {/* Level display for user's own messages - matching global chat style */}
-                {item.isUser && !isEncrypted && item.level && item.level > 0 && (
+                {item.isUser && !isEncrypted && (item.level ?? 0) > 0 && (
                     <View
                         style={{
                             position: 'absolute',

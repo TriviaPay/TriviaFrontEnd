@@ -28,6 +28,7 @@ import timerReducer from './timerSlice';
 // import statusReducer from './slices/statusSlice';
 // import presenceReducer from './slices/presenceSlice';
 import chatStoreReducer from './slices/chatStoreSlice';
+import countryReducer from './countrySlice';
 
 // Combine all reducers
 const rootReducer = {
@@ -58,6 +59,7 @@ const rootReducer = {
   // presence: presenceReducer,
   chatStore: chatStoreReducer,
   timer: timerReducer,
+  countries: countryReducer,
 };
 
 // Persist config - using keychain storage

@@ -7,6 +7,7 @@
 export { default as LoginScreen } from './screens/LoginScreen';
 export { default as WelcomeScreen } from './screens/WelcomeScreen';
 export { default as SignupScreen } from './screens/SignupScreen';
+export { default as ForgotPasswordScreen } from './screens/ForgotPasswordScreen';
 
 // Hooks
 export { useAuth } from './hooks/useAuth';

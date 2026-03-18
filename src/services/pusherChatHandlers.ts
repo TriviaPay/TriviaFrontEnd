@@ -1,21 +1,18 @@
-/**
- * Pusher Chat Event Handlers
- * Manages real-time chat events via Pusher
- */
-
 import { subscribeToChannel, unsubscribeFromChannel } from '../pusherClient';
 import { store } from '../store/store';
 import {
   addMessage,
+  addGlobalMessage,
   updateConversation,
   markMessageAsDelivered as markDelivered,
   markAllMessagesAsRead as markRead,
   setTypingState,
   clearTypingState,
   removeConversation,
-} from '../store/slices/chatSlice';
+} from '../store/chatSlice';
 import {
   Message,
+  GlobalChatMessage,
   PusherMessageSentEvent,
   PusherMessageDeliveredEvent,
   PusherMessageReadEvent,
@@ -23,7 +20,7 @@ import {
   PusherConversationAcceptedEvent,
   PusherConversationRejectedEvent,
 } from '../types/chat.types';
-import { markMessageAsDelivered } from './chatService';
+import { logger } from '../lib/utils/logger';
 
 // Store active subscriptions
 const activeSubscriptions = new Set<string>();
@@ -38,95 +35,99 @@ let currentUserId: number | null = null;
 export const initChatHandlers = (token: string, userId: number) => {
   userToken = token;
   currentUserId = userId;
+
+  // Ensure we are subscribed to global chat by default
+  subscribeToGlobalChat();
+};
+
+/**
+ * Subscribe to global chat channel
+ */
+export const subscribeToGlobalChat = async () => {
+  const channelName = 'global-chat';
+  if (activeSubscriptions.has(channelName)) return;
+
+  try {
+    await subscribeToChannel(channelName, event => {
+      // Global chat events are usually 'new-message' or 'message'
+      if (event.eventName === 'new-message' || event.eventName === 'message') {
+        let data = event.data;
+        if (typeof data === 'string') {
+          try { data = JSON.parse(data); } catch (e) { return; }
+        }
+        handleGlobalMessage(data as GlobalChatMessage);
+      }
+    });
+    activeSubscriptions.add(channelName);
+  } catch (error) {
+    logger.error('❌ [PusherChat] Global subscription error:', 'CHAT', error);
+  }
 };
 
 /**
  * Subscribe to a conversation channel
  */
 export const subscribeToConversation = async (conversationId: number) => {
-  // Change to private-chat-{id} format which is more standard/safe
-  // Use private-conversation.{id} as resource-based naming
   const channelName = `private-conversation-${conversationId}`;
-
-  // Check if already subscribed
-  if (activeSubscriptions.has(channelName)) {
-    return;
-  }
+  if (activeSubscriptions.has(channelName)) return;
 
   try {
     await subscribeToChannel(channelName, event => {
       handlePusherEvent(conversationId, event.eventName, event.data);
     });
-
     activeSubscriptions.add(channelName);
   } catch (error) {
-    logger.error('❌ [PusherChat] Error subscribing to conversation:', 'CHAT', error);
-    throw error;
+    logger.error('❌ [PusherChat] Conversation subscription error:', 'CHAT', error);
   }
 };
 
 /**
- * Unsubscribe from a conversation channel
+ * Handle incoming Global message
  */
-export const unsubscribeFromConversation = (conversationId: number) => {
-  const channelName = `private-conversation-${conversationId}`;
-
-  if (!activeSubscriptions.has(channelName)) {
-    return;
-  }
-
-  try {
-    unsubscribeFromChannel(channelName);
-    activeSubscriptions.delete(channelName);
-  } catch (error) {
-    logger.error('❌ [PusherChat] Error unsubscribing from conversation:', 'CHAT', error);
-  }
-};
-
-/**
- * Unsubscribe from all conversations
- */
-export const unsubscribeFromAllConversations = () => {
-  activeSubscriptions.forEach(channelName => {
-    const conversationId = parseInt(channelName.split('-')[2]);
-    if (!isNaN(conversationId)) {
-      unsubscribeFromConversation(conversationId);
-    }
-  });
-  activeSubscriptions.clear();
+const handleGlobalMessage = (message: GlobalChatMessage) => {
+  store.dispatch(addGlobalMessage(message));
 };
 
 /**
  * Handle incoming Pusher events
  */
 const handlePusherEvent = (conversationId: number, eventName: string, data: any) => {
+  // Parse data if needed
+  let eventData = data;
+  if (typeof eventData === 'string') {
+    try { eventData = JSON.parse(eventData); } catch (e) { return; }
+  }
+
   switch (eventName) {
+    case 'new-message':
     case 'message.sent':
-      handleMessageSent(conversationId, data as PusherMessageSentEvent);
+      handleMessageSent(conversationId, eventData as PusherMessageSentEvent);
       break;
 
     case 'message.delivered':
-      handleMessageDelivered(conversationId, data as PusherMessageDeliveredEvent);
+      handleMessageDelivered(conversationId, eventData as PusherMessageDeliveredEvent);
       break;
 
     case 'message.read':
-      handleMessageRead(conversationId, data as PusherMessageReadEvent);
+      handleMessageRead(conversationId, eventData as PusherMessageReadEvent);
       break;
 
+    case 'typing':
     case 'typing.start':
-      handleTypingStart(conversationId, data as PusherTypingEvent);
+      handleTypingStart(conversationId, eventData as PusherTypingEvent);
       break;
 
+    case 'typing-stop':
     case 'typing.stop':
-      handleTypingStop(conversationId, data as PusherTypingEvent);
+      handleTypingStop(conversationId, eventData as PusherTypingEvent);
       break;
 
     case 'conversation.accepted':
-      handleConversationAccepted(data as PusherConversationAcceptedEvent);
+      handleConversationAccepted(eventData as PusherConversationAcceptedEvent);
       break;
 
     case 'conversation.rejected':
-      handleConversationRejected(data as PusherConversationRejectedEvent);
+      handleConversationRejected(eventData as PusherConversationRejectedEvent);
       break;
 
     default:
@@ -137,125 +138,64 @@ const handlePusherEvent = (conversationId: number, eventName: string, data: any)
 /**
  * Handle new message received
  */
-const handleMessageSent = async (conversationId: number, data: PusherMessageSentEvent) => {
-  try {
-    const { message, conversation } = data;
+const handleMessageSent = (conversationId: number, data: any) => {
+  // Data might be PusherMessageSentEvent { message, conversation } or just Message
+  const message = data.message || data;
+  if (!message || !message.id) return;
 
-    // Add message to store
-    store.dispatch(addMessage({ conversationId, message }));
+  store.dispatch(addMessage({ conversationId, message }));
 
-    // Update conversation in list
-    if (conversation) {
-      store.dispatch(updateConversation(conversation));
-    }
-
-    // Mark as delivered if message is from other user
-    if (message.sender_id !== currentUserId && userToken) {
-      try {
-        await markMessageAsDelivered(userToken, message.id);
-      } catch (error) {
-        logger.error('❌ [PusherChat] Error marking message as delivered:', 'CHAT', error);
-      }
-    }
-  } catch (error) {
-    logger.error('❌ [PusherChat] Error handling message.sent:', 'CHAT', error);
+  if (data.conversation) {
+    store.dispatch(updateConversation(data.conversation));
   }
 };
 
-/**
- * Handle message delivered event
- */
-const handleMessageDelivered = (conversationId: number, data: PusherMessageDeliveredEvent) => {
-  try {
-    const { message_id } = data;
-
-    // Update message status in store
-    store.dispatch(markDelivered({ conversationId, messageId: message_id }));
-  } catch (error) {
-    logger.error('❌ [PusherChat] Error handling message.delivered:', 'CHAT', error);
+const handleMessageDelivered = (conversationId: number, data: any) => {
+  const messageId = data.message_id || data.id;
+  if (messageId) {
+    store.dispatch(markDelivered({ conversationId, messageId }));
   }
 };
 
-/**
- * Handle message read event
- */
-const handleMessageRead = (conversationId: number, data: PusherMessageReadEvent) => {
-  try {
-    const { user_id } = data;
+const handleMessageRead = (conversationId: number, data: any) => {
+  store.dispatch(markRead(conversationId));
+};
 
-    // Only update if it's the other user who read (not us)
-    if (user_id !== currentUserId) {
-      store.dispatch(markRead(conversationId));
-    }
-  } catch (error) {
-    logger.error('❌ [PusherChat] Error handling message.read:', 'CHAT', error);
+const handleTypingStart = (conversationId: number, data: any) => {
+  const userId = data.user_id || data.sender_id;
+  if (userId !== currentUserId) {
+    store.dispatch(setTypingState({ conversationId, isTyping: true, user: data.user || data }));
   }
 };
 
-/**
- * Handle typing started
- */
-const handleTypingStart = (conversationId: number, data: PusherTypingEvent) => {
-  try {
-    const { user_id, user } = data;
+const handleTypingStop = (conversationId: number, data: any) => {
+  store.dispatch(clearTypingState(conversationId));
+};
 
-    // Only show typing indicator if it's the other user
-    if (user_id !== currentUserId) {
-      store.dispatch(setTypingState({ conversationId, isTyping: true, user }));
-    }
-  } catch (error) {
-    logger.error('❌ [PusherChat] Error handling typing.start:', 'CHAT', error);
+const handleConversationAccepted = (data: any) => {
+  if (data.conversation) {
+    store.dispatch(updateConversation(data.conversation));
   }
 };
 
-/**
- * Handle typing stopped
- */
-const handleTypingStop = (conversationId: number, data: PusherTypingEvent) => {
-  try {
-    const { user_id } = data;
-
-    // Only clear typing indicator if it's the other user
-    if (user_id !== currentUserId) {
-      store.dispatch(clearTypingState(conversationId));
-    }
-  } catch (error) {
-    logger.error('❌ [PusherChat] Error handling typing.stop:', 'CHAT', error);
+const handleConversationRejected = (data: any) => {
+  const conversationId = data.conversation_id || data.id;
+  if (conversationId) {
+    store.dispatch(removeConversation(conversationId));
   }
 };
 
-/**
- * Handle conversation accepted
- */
-const handleConversationAccepted = (data: PusherConversationAcceptedEvent) => {
-  try {
-    const { conversation } = data;
-
-    // Update conversation status in store
-    store.dispatch(updateConversation(conversation));
-  } catch (error) {
-    logger.error('❌ [PusherChat] Error handling conversation.accepted:', 'CHAT', error);
-  }
-};
-
-/**
- * Handle conversation rejected
- */
-const handleConversationRejected = (data: PusherConversationRejectedEvent) => {
-  try {
-    const { conversation_id } = data;
-
-    // Remove conversation from store
-    store.dispatch(removeConversation(conversation_id));
-  } catch (error) {
-    logger.error('❌ [PusherChat] Error handling conversation.rejected:', 'CHAT', error);
-  }
-};
-
-// Export all functions
 export default {
   initChatHandlers,
+  subscribeToGlobalChat,
   subscribeToConversation,
-  unsubscribeFromConversation,
-  unsubscribeFromAllConversations,
+  unsubscribeFromConversation: (conversationId: number) => {
+    const channelName = `private-conversation-${conversationId}`;
+    unsubscribeFromChannel(channelName);
+    activeSubscriptions.delete(channelName);
+  },
+  unsubscribeFromAllConversations: () => {
+    activeSubscriptions.forEach(name => unsubscribeFromChannel(name));
+    activeSubscriptions.clear();
+  },
 };

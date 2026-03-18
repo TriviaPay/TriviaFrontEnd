@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo, memo } from 'react';
+﻿import React, { useEffect, useState, useRef, useCallback, useMemo, memo } from 'react';
 import {
   View,
   FlatList,
@@ -9,29 +9,22 @@ import {
   StyleSheet,
   TextInput,
   Keyboard,
-  KeyboardAvoidingView,
   InteractionManager,
   Modal,
   Pressable,
   PanResponder,
   Platform,
-  Alert,
+  Alert
 } from 'react-native';
-import Animated, {
-  useDerivedValue,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import { useIsMounted } from '../../../hooks/useIsMounted';
 import LottieView from 'lottie-react-native';
-import dateUtils from '../../../utils/dateUtils';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSelector } from 'react-redux';
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { RootState } from '../../../store';
+import useKeyboardStatus from '../../../core/hooks/useKeyboardStatus';
 import { useGlobalChat, GlobalChatMessage } from '../../../hooks/useGlobalChat';
 import { usePrivateChat, PrivateConversation } from '../../../hooks/usePrivateChat';
 import { useChatMute } from '../../../hooks/useChatMute';
@@ -39,7 +32,6 @@ import { useSafeArea } from '../../../hooks/useSafeArea';
 import { usePlatformOptimization, useHapticFeedback } from '../../../hooks/usePlatformOptimization';
 import { ScreenBackButtonHandler } from '../../../core/components/BackButtonHandler';
 import { KeyboardManager } from '../../../core/keyboard/KeyboardManager';
-import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { usePlatform } from '../../../core/hooks/usePlatform';
 import { ScreenErrorBoundary } from '../../../core/error/ScreenErrorBoundary';
 import { useStandardResponsive } from '../../../hooks/useStandardResponsive';
@@ -148,7 +140,6 @@ interface PersonalChatUser {
 const ChatsScreen: React.FC<ChatsScreenProps> = () => {
   // CRITICAL: Mount tracking to prevent state updates after unmount
   const isMounted = useIsMounted();
-  const insets = useSafeAreaInsets();
 
   // Platform-specific optimizations
   const { triggerHaptic } = useHapticFeedback();
@@ -166,44 +157,11 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
     scaleSize: scaleSizeFunc,
     getSpacing,
     getVerticalSpacing,
-    headerHeight,
     getHorizontalSpacing,
     deviceType,
     width: screenWidth,
     height: screenHeight,
   } = useStandardResponsive();
-  const [keyboardShown, setKeyboardShown] = useState(false);
-  const [keyboardHeightValue, setKeyboardHeightValue] = useState(0);
-  const bottomInset = insets.bottom || 0;
-  const globalListPaddingBottom = bottomInset + keyboardHeightValue;
-  const stickyOffset = {
-    opened: scaleSizeFunc(280),
-    closed: scaleSizeFunc(-10),
-  };
-  const [tabsHeight, setTabsHeight] = useState(60);
-  const [inputHeight, setInputHeight] = useState(65);
-  const [globalInputContainerHeight, setGlobalInputContainerHeight] = useState(scaleSizeFunc(70));
-
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
-      if (!isMounted()) return;
-      const h = e.endCoordinates.height;
-      setKeyboardHeightValue(h);
-      setKeyboardShown(true);
-      // Ensure we scroll to bottom when keyboard opens to see latest messages
-      setTimeout(() => handleScrollToBottom(), 100);
-    });
-    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
-      if (!isMounted()) return;
-      setKeyboardHeightValue(0);
-      setKeyboardShown(false);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, [isMounted]);
 
   // Create responsive styles
   const styles = useMemo(() => createStyles(scaleFont, scaleSizeFunc, getSpacing, getVerticalSpacing, getHorizontalSpacing), [scaleFont, scaleSizeFunc, getSpacing, getVerticalSpacing, getHorizontalSpacing]);
@@ -216,7 +174,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
   // Track scroll state to prevent auto-scroll when user is manually scrolling
   const isUserScrollingRef = useRef<boolean>(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isNearBottomRef = useRef<boolean>(true); // For inverted list, 0 offset is bottom (newest)
+  const isNearBottomRef = useRef<boolean>(true);
 
   // Get initialTab from route params if provided
   const routeParams = route.params as { initialTab?: 'GLOBAL' | 'PERSONAL' } | undefined;
@@ -356,6 +314,9 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
     );
   }, [personalChatUsers, searchQuery]);
 
+  // Keyboard status
+  const { keyboardShown, keyboardHeight } = useKeyboardStatus();
+
   // Aggressive prefetching: Prefetch everything when screen is focused
   // Show cached data immediately, refresh in background
   // Track if initial load is done to prevent repeated calls
@@ -421,133 +382,106 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
 
   // Transform global chat messages to ChatMessage format
   // Sort by created_at (oldest first, newest at bottom) and filter invalid messages
-  const transformedMessagesCacheRef = useRef<{ [key: string]: UIMessage }>({});
+  const globalMessages: ChatMessage[] = globalChatMessages
+    .filter((msg: GlobalChatMessage) => {
+      const isValid = msg.user_id != null && msg.id != null && msg.created_at && msg.message;
+      if (!isValid) {
 
-  const globalUiMessages: UIMessage[] = useMemo(() => {
-    if (!globalChatMessages || globalChatMessages.length === 0) {
-      return [];
-    }
-
-    // Get current user ID from profile.account_id (numeric) - this is the actual user ID
-    let currentUserId: number | null = null;
-    if (profile?.account_id) {
-      currentUserId = typeof profile.account_id === 'number' ? profile.account_id : (typeof profile.account_id === 'string' ? parseInt(profile.account_id, 10) : null);
-      if (currentUserId !== null && isNaN(currentUserId)) {
-        currentUserId = null;
       }
-    }
-    if (!currentUserId && user?.id) {
-      if (typeof user.id === 'number') {
-        currentUserId = user.id;
-      } else if (typeof user.id === 'string') {
-        const parsedUserId = parseInt(user.id, 10);
-        currentUserId = isNaN(parsedUserId) ? null : parsedUserId;
+      return isValid;
+    })
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map((msg: GlobalChatMessage) => {
+      // Get current user ID from profile.account_id (numeric) - this is the actual user ID
+      // user.id in auth is email (string), but profile.account_id is the numeric ID used by API
+      // Handle both number and string types
+      let currentUserId: number | null = null;
+      if (profile?.account_id) {
+        currentUserId = typeof profile.account_id === 'number' ? profile.account_id : (typeof profile.account_id === 'string' ? parseInt(profile.account_id, 10) : null);
+        if (currentUserId !== null && isNaN(currentUserId)) {
+          currentUserId = null;
+        }
       }
-    }
-
-    const messagesWithoutDates = globalChatMessages
-      .filter((msg: GlobalChatMessage) => {
-        const isValid = msg.user_id != null && msg.id != null && msg.created_at && msg.message;
-        if (!isValid) {
-          // logger.warn(`[ChatsScreen] Invalid global chat message filtered out:`, msg);
+      if (!currentUserId && user?.id) {
+        if (typeof user.id === 'number') {
+          currentUserId = user.id;
+        } else if (typeof user.id === 'string') {
+          const parsedUserId = parseInt(user.id, 10);
+          currentUserId = isNaN(parsedUserId) ? null : parsedUserId;
         }
-        return isValid;
-      })
-      .map((msg: GlobalChatMessage) => {
-        const cacheKey = `${msg.id}-${msg.created_at}`;
-        if (transformedMessagesCacheRef.current[cacheKey]) {
-          return transformedMessagesCacheRef.current[cacheKey];
-        }
+      }
 
-        const rawMessageUserId = typeof msg.user_id === 'number' ? msg.user_id : (typeof msg.user_id === 'string' ? parseInt(msg.user_id, 10) : null);
-        const messageUserId = rawMessageUserId !== null && !isNaN(rawMessageUserId) ? rawMessageUserId : null;
-        const messageDate = new Date(msg.created_at);
-        const fallbackUsername = (profile?.username || user?.username || user?.email || '').trim().toLowerCase();
-        const messageUsername = (msg.username || '').trim().toLowerCase();
+      const rawMessageUserId = typeof msg.user_id === 'number' ? msg.user_id : (typeof msg.user_id === 'string' ? parseInt(msg.user_id, 10) : null);
+      const messageUserId = rawMessageUserId !== null && !isNaN(rawMessageUserId) ? rawMessageUserId : null;
+      const messageDate = new Date(msg.created_at);
+      const fallbackUsername = (profile?.username || user?.username || user?.email || '').trim().toLowerCase();
+      const messageUsername = (msg.username || '').trim().toLowerCase();
 
-        let isOwn = false;
-        if (currentUserId !== null && messageUserId !== null) {
-          isOwn = currentUserId === messageUserId;
-        } else if (fallbackUsername && messageUsername) {
-          isOwn = fallbackUsername === messageUsername;
-        } else if (msg.id < 0) {
-          isOwn = true;
-        }
+      // Check if message is from current user (strict numeric comparison with type handling)
+      // CRITICAL: This determines message alignment - own messages go RIGHT, others go LEFT
+      let isOwn = false;
+      if (currentUserId !== null && messageUserId !== null) {
+        isOwn = currentUserId === messageUserId;
+      } else if (fallbackUsername && messageUsername) {
+        isOwn = fallbackUsername === messageUsername;
+      } else if (msg.id < 0) {
+        // Optimistic/local messages (negative IDs) must stay on right
+        isOwn = true;
+      }
 
-        const localDate = new Date(messageDate);
-        const formattedTime = localDate.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-        });
+      // Debug logging for user ID comparison
+      if (globalChatMessages.indexOf(msg) < 2) {
 
-        const uiMsg: UIMessage = {
-          id: msg.id,
-          text: msg.message,
-          sender: msg.username,
-          timestamp: formattedTime,
-          status: 'sent',
-          isUser: isOwn,
-          profile_pic: msg.profile_pic,
-          avatar_url: msg.avatar_url || null,
-          badge: msg.badge || null,
-          reply_to: msg.reply_to ? {
-            id: msg.reply_to.id || 0,
-            message: msg.reply_to.message || '',
-            sender: msg.reply_to.sender || '',
-          } : null,
-          image: null,
-          isTriviaLive: msg.is_from_trivia_live || false,
-          level: msg.level,
-        };
-        transformedMessagesCacheRef.current[cacheKey] = uiMsg;
-        return uiMsg;
-      })
-      .sort((a, b) => {
-        // Sort by created_at so optimistic (negative id) messages appear in correct time order
-        const aData = globalChatMessages.find(m => m.id === a.id);
-        const bData = globalChatMessages.find(m => m.id === b.id);
-        const tA = aData?.created_at ? new Date(aData.created_at).getTime() : 0;
-        const tB = bData?.created_at ? new Date(bData.created_at).getTime() : 0;
-        return tA - tB; // Oldest first, newest at bottom
+      }
+
+      // Format time from API response: Convert ISO timestamp to local time properly
+      // The API returns ISO 8601 format (e.g., "2025-11-20T05:59:17.484173")
+      // Convert to local time and display in HH:MM AM/PM format
+      const localDate = new Date(messageDate);
+      const formattedTime = localDate.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
 
-    // Insert date separators BEFORE each group of messages for the same day
-    // (non-inverted list: oldest at top, newest at bottom)
-    const withDates: any[] = [];
-    for (let i = 0; i < messagesWithoutDates.length; i++) {
-      const current = messagesWithoutDates[i];
-      const prev = messagesWithoutDates[i - 1];
+      return {
+        id: msg.id,
+        username: msg.username,
+        message: msg.message,
+        avatar: msg.profile_pic,
+        profile_pic: msg.profile_pic,
+        avatar_url: msg.avatar_url || null,
+        badge: msg.badge || null,
+        timestamp: formattedTime,
+        isOwn: isOwn,
+        user_id: messageUserId !== null ? messageUserId.toString() : undefined,
+        is_from_trivia_live: msg.is_from_trivia_live || false,
+        reply_to: msg.reply_to ? {
+          id: msg.reply_to.id || 0,
+          message: msg.reply_to.message || '',
+          sender: msg.reply_to.sender || '',
+        } : null,
+        level: msg.level,
+      };
+    });
 
-      // Find the original GlobalChatMessage to get created_at for date comparison
-      const currentMsgData = globalChatMessages.find(m => m.id === current.id);
-      const prevMsgData = prev ? globalChatMessages.find(m => m.id === prev.id) : null;
+  // Get messages based on active tab
+  const getMessages = (): ChatMessage[] => {
+    return activeTab === 'GLOBAL' ? globalMessages : [];
+  };
 
-      // Insert date separator before the first message of a new day
-      if (currentMsgData && (!prevMsgData || dateUtils.isDifferentDay(currentMsgData.created_at, prevMsgData.created_at))) {
-        withDates.push({
-          id: `date-sep-${current.id}`,
-          isDateSeparator: true,
-          dateLabel: dateUtils.getMessageDateLabel(currentMsgData.created_at),
-        });
-      }
-
-      withDates.push(current);
-    }
-    return withDates;
-  }, [globalChatMessages, profile?.account_id, user?.id, user?.username, user?.email]);
+  const displayMessages = getMessages();
 
   // Debug: Log message counts
   useEffect(() => {
     if (activeTab === 'GLOBAL') {
-      // logger.debug(`[ChatsScreen] Global messages count: ${globalUiMessages.length}`);
-      if (globalUiMessages.length > 0) {
-        // logger.debug(`[ChatsScreen] First global message:`, globalUiMessages[0]);
-        // logger.debug(`[ChatsScreen] Last global message:`, globalUiMessages[globalUiMessages.length - 1]);
+
+      if (globalMessages.length > 0) {
+
       }
     }
-  }, [globalChatMessages.length, globalUiMessages.length, activeTab, user?.id]);
+  }, [globalChatMessages.length, globalMessages.length, activeTab, user?.id]);
 
   // Track timeouts for cleanup to prevent memory leaks
   const scrollTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
@@ -558,12 +492,12 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
     const scrollOffset = contentOffset.y;
     const contentHeight = contentSize.height;
     const containerHeight = layoutMeasurement.height;
-    const distanceFromBottom = contentHeight - scrollOffset - containerHeight;
 
-    // For NON-inverted list, isNearBottom = close to the very end
+    // Check if user is near bottom (within 100px of bottom)
+    const distanceFromBottom = contentHeight - scrollOffset - containerHeight;
     isNearBottomRef.current = distanceFromBottom < 100;
 
-    // Show scroll to bottom button if user has scrolled up significantly
+    // Show/hide scroll to bottom button (show if not near bottom)
     if (isMounted()) {
       setShowScrollToBottom(distanceFromBottom > 200);
     }
@@ -581,24 +515,24 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
       isUserScrollingRef.current = false;
       scrollTimeoutRef.current = null;
     }, 500);
-  }, []);
+  }, [isMounted]);
 
   // Scroll to bottom when messages load or tab changes - ALWAYS scroll on initial load
   const hasScrolledToBottomRef = useRef(false);
   const initialLoadRef = useRef(true);
 
   useEffect(() => {
-    if (activeTab === 'GLOBAL' && globalUiMessages.length > 0 && isMounted()) {
+    if (activeTab === 'GLOBAL' && displayMessages.length > 0 && isMounted()) {
       // Always scroll to bottom on initial load or when switching to GLOBAL tab
-      // For inverted list, "bottom" is offset 0
       const shouldScroll = initialLoadRef.current || !hasScrolledToBottomRef.current || (!isUserScrollingRef.current && isNearBottomRef.current);
 
       if (shouldScroll) {
+        // Use requestAnimationFrame for smoother scroll on initial load
         requestAnimationFrame(() => {
           const timeout = setTimeout(() => {
             scrollTimeoutsRef.current.delete(timeout);
             if (isMounted() && flatListRef.current) {
-              flatListRef.current.scrollToEnd({ animated: false }); // Scroll to bottom (newest messages)
+              flatListRef.current.scrollToEnd({ animated: false });
               hasScrolledToBottomRef.current = true;
               initialLoadRef.current = false;
               if (isMounted()) {
@@ -613,15 +547,15 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
       // Reset when switching away from GLOBAL tab
       hasScrolledToBottomRef.current = false;
     }
-  }, [globalUiMessages.length, activeTab, isMounted]);
+  }, [displayMessages.length, activeTab, isMounted]);
 
   // Auto-scroll when new messages arrive (from Pusher) - only if user is near bottom
   useEffect(() => {
-    if (activeTab === 'GLOBAL' && globalUiMessages.length > 0 && isMounted() && !isUserScrollingRef.current && isNearBottomRef.current) {
+    if (activeTab === 'GLOBAL' && displayMessages.length > 0 && isMounted() && !isUserScrollingRef.current && isNearBottomRef.current) {
       const timeout = setTimeout(() => {
         scrollTimeoutsRef.current.delete(timeout);
         if (isMounted() && !isUserScrollingRef.current && isNearBottomRef.current && flatListRef.current) {
-          flatListRef.current.scrollToEnd({ animated: true }); // Scroll to bottom (newest messages)
+          flatListRef.current.scrollToEnd({ animated: true });
         }
       }, 300);
       scrollTimeoutsRef.current.add(timeout);
@@ -635,11 +569,11 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
 
   // Scroll to bottom when keyboard opens - only if user is near bottom
   useEffect(() => {
-    if (keyboardShown && globalUiMessages.length > 0 && isMounted() && isNearBottomRef.current) {
+    if (keyboardShown && displayMessages.length > 0 && isMounted() && isNearBottomRef.current) {
       const timeout = setTimeout(() => {
         scrollTimeoutsRef.current.delete(timeout);
         if (isMounted() && isNearBottomRef.current && flatListRef.current) {
-          flatListRef.current.scrollToEnd({ animated: true }); // Scroll to bottom (newest messages)
+          flatListRef.current.scrollToEnd({ animated: true });
         }
       }, 100);
       scrollTimeoutsRef.current.add(timeout);
@@ -649,23 +583,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
         scrollTimeoutsRef.current.delete(timeout);
       };
     }
-  }, [keyboardShown, globalUiMessages.length, isMounted]);
-
-  // Native keyboard listener for Android adjustResize (scroll to bottom when keyboard opens)
-  useEffect(() => {
-    const keyboardDidShow = Keyboard.addListener('keyboardDidShow', () => {
-      if (activeTab === 'GLOBAL' && flatListRef.current && isNearBottomRef.current && isMounted()) {
-        setTimeout(() => {
-          if (flatListRef.current && isMounted()) {
-            flatListRef.current.scrollToEnd({ animated: true });
-          }
-        }, 100);
-      }
-    });
-    return () => {
-      keyboardDidShow.remove();
-    };
-  }, [activeTab, isMounted]);
+  }, [keyboardShown, displayMessages.length, isMounted]);
 
   // Cleanup scroll timeout on unmount
   useEffect(() => {
@@ -714,6 +632,8 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
     if (isMounted()) {
       setMessageText('');
       setReplyingTo(null);
+      // Dismiss keyboard
+      Keyboard.dismiss();
     }
 
     // Send message via API with optimistic message (optimistic message is added inside sendMessage)
@@ -730,7 +650,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
           const timeout = setTimeout(() => {
             scrollTimeoutsRef.current.delete(timeout);
             if (isMounted() && flatListRef.current) {
-              flatListRef.current.scrollToEnd({ animated: true }); // Scroll to bottom (newest messages)
+              flatListRef.current.scrollToEnd({ animated: true });
             }
           }, 100);
           scrollTimeoutsRef.current.add(timeout);
@@ -757,7 +677,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
 
     // Validate peerUserId before proceeding
     if (!peerUserId || peerUserId <= 0) {
-      logger.error('❌ [ChatsScreen] Cannot open chat: peer_user_id is missing or invalid', 'CHAT', {
+      logger.error('Γ¥î [ChatsScreen] Cannot open chat: peer_user_id is missing or invalid', 'CHAT', {
         chatUser,
         conversation,
         peerUserId,
@@ -828,7 +748,9 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
       // Use scrollToOffset to ensure we go to the very end
       setTimeout(() => {
         if (flatListRef.current && isMounted()) {
+          // Scroll to a very large offset to ensure we reach the end
           flatListRef.current.scrollToOffset({ offset: 999999, animated: true });
+          // Also try scrollToEnd as backup
           requestAnimationFrame(() => {
             if (flatListRef.current && isMounted()) {
               flatListRef.current.scrollToEnd({ animated: false });
@@ -847,18 +769,26 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
 
   // Render chat message - proper alignment like WhatsApp (for GLOBAL tab)
   // CRITICAL: User's own messages ALWAYS on RIGHT, others on LEFT
-  const renderMessage = useCallback(({ item }: { item: UIMessage | { id: string; isDateSeparator: boolean; dateLabel: string } }) => {
-    if ('isDateSeparator' in item && item.isDateSeparator) {
-      return (
-        <View style={styles.dateSeparatorContainer}>
-          <View style={styles.dateSeparatorPill}>
-            <Text style={styles.dateSeparatorText}>{item.dateLabel}</Text>
-          </View>
-        </View>
-      );
-    }
-
-    const uiMessage = item as UIMessage;
+  // Render chat message - proper alignment like WhatsApp (for GLOBAL tab)
+  // CRITICAL: User's own messages ALWAYS on RIGHT, others on LEFT
+  const renderMessage = useCallback(({ item }: { item: ChatMessage }) => {
+    // Map ChatMessage to UIMessage for ChatMessageItem
+    // NOTE: We map 'username' to 'sender' and 'message' to 'text'
+    const uiMessage: UIMessage = {
+      id: item.id,
+      text: item.message,
+      sender: item.username,
+      timestamp: item.timestamp,
+      status: 'sent', // Default to sent for global chat as we don't track status meticulously here
+      isUser: item.isOwn,
+      profile_pic: item.profile_pic,
+      avatar_url: item.avatar_url,
+      badge: item.badge,
+      reply_to: item.reply_to,
+      image: null, // Global chat doesn't support images yet
+      isTriviaLive: item.is_from_trivia_live,
+      level: item.level || undefined,
+    };
 
     return (
       <ChatMessageItem
@@ -868,7 +798,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
         styles={styles}
         onLongPress={(id, text, sender) => handleMessageLongPress(id, text, sender)}
         onSwipeReply={(id, text, sender) => handleSwipeReply(id, text, sender)}
-        level={uiMessage.level || undefined}
+        level={item.level || undefined}
       />
     );
   }, [handleMessageLongPress, handleSwipeReply]);
@@ -979,14 +909,18 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
     );
   }, [formatLastSeen]);
 
+  const platform = usePlatform();
+
   return (
     <ScreenErrorBoundary screenName="ChatsScreen">
       <ScreenBackButtonHandler action="navigate" />
-      <View style={styles.container}>
-        {/* CRITICAL: Safe area edges for top only (status bar) */}
-        <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-          <View style={{ flex: 1, width: '100%' }}>
-            {/* Header - TRIVIA COIN CHAT (FIXED) */}
+      <View style={[styles.container, { width: '100%', height: '100%' }]}>
+        {/* CRITICAL: Status bar is hidden for Chats, no safe area edges needed to prevent overlap */}
+        <SafeAreaView style={[styles.safeArea, { width: '100%', height: '100%', paddingTop: 0 }]} edges={[]}>
+          <KeyboardManager
+            style={styles.keyboardView}
+          >
+            {/* Header - TRIVIA COIN CHAT */}
             <View style={styles.header}>
               <View style={styles.headerContent}>
                 <View style={styles.headerTitleContainer}>
@@ -998,6 +932,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                   <View
                     ref={headerMenuButtonRef}
                     onLayout={(event) => {
+                      const { x, y, width, height } = event.nativeEvent.layout;
                       headerMenuButtonRef.current?.measure((fx, fy, fwidth, fheight, px, py) => {
                         setMenuButtonLayout({ x: px, y: py, width: fwidth, height: fheight });
                       });
@@ -1008,7 +943,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                       style={styles.headerMenuButton}
                       activeOpacity={0.7}
                     >
-                      <Icon name="dots-vertical" size={scaleSizeFunc(24)} color="#FFFFFF" />
+                      <Icon name="dots-vertical" size={24} color="#FFFFFF" />
                     </SoundTouchableOpacity>
                   </View>
                 )}
@@ -1016,6 +951,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                   <View
                     ref={personalMenuButtonRef}
                     onLayout={(event) => {
+                      const { x, y, width, height } = event.nativeEvent.layout;
                       personalMenuButtonRef.current?.measure((fx, fy, fwidth, fheight, px, py) => {
                         setPersonalMenuButtonLayout({ x: px, y: py, width: fwidth, height: fheight });
                       });
@@ -1026,17 +962,15 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                       style={styles.headerMenuButton}
                       activeOpacity={0.7}
                     >
-                      <Icon name="dots-vertical" size={scaleSizeFunc(24)} color="#FFFFFF" />
+                      <Icon name="dots-vertical" size={24} color="#FFFFFF" />
                     </SoundTouchableOpacity>
                   </View>
                 )}
               </View>
             </View>
 
-            {/* Tabs - GLOBAL and PERSONAL (FIXED) */}
-            <View
-              style={styles.tabsContainer}
-            >
+            {/* Tabs - GLOBAL and PERSONAL */}
+            <View style={styles.tabsContainer}>
               <SoundTouchableOpacity
                 style={[styles.tab, activeTab === 'GLOBAL' && styles.tabActive]}
                 onPress={() => handleTabSwitch('GLOBAL')}
@@ -1044,7 +978,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
               >
                 <Icon
                   name="earth"
-                  size={scaleSizeFunc(18)}
+                  size={18}
                   color={activeTab === 'GLOBAL' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)'}
                   style={styles.tabIcon}
                 />
@@ -1060,7 +994,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
               >
                 <Icon
                   name="account-multiple"
-                  size={scaleSizeFunc(18)}
+                  size={18}
                   color={activeTab === 'PERSONAL' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)'}
                   style={styles.tabIcon}
                 />
@@ -1072,27 +1006,20 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
 
             {/* Messages List or Personal Chats List */}
             {activeTab === 'GLOBAL' ? (
-              <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={0}
-              >
-                <View style={{ flex: 1, position: 'relative' }}>
-                  <FlatList
+              <View style={{ flex: 1, position: 'relative' }}>
+                <FlatList
                   ref={flatListRef}
-                  data={globalUiMessages}
+                  data={displayMessages}
                   renderItem={renderMessage}
                   keyExtractor={(item) => item.id.toString()}
-                  extraData={globalChatMessages?.length ?? 0}
                   contentContainerStyle={[
                     styles.messagesContent,
-                    { paddingBottom: globalListPaddingBottom },
+                    platform.isAndroid && keyboardShown && { paddingBottom: keyboardHeight - 80 }
                   ]}
                   style={styles.messagesList}
-                  inverted={false} // Non-inverted: oldest messages at top, newest at bottom
-                  keyboardShouldPersistTaps="always"
-                  keyboardDismissMode="none"
-                  scrollIndicatorInsets={{ bottom: globalListPaddingBottom }}
+                  inverted={false}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="interactive"
                   refreshing={false}
                   onRefresh={() => {
                     // Refresh in background - no loading indicator
@@ -1103,7 +1030,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                   initialNumToRender={25}
                   maxToRenderPerBatch={15}
                   windowSize={21}
-                  removeClippedSubviews={Platform.OS === 'android'}
+                  removeClippedSubviews={platform.isAndroid}
                   updateCellsBatchingPeriod={50}
                   maintainVisibleContentPosition={{
                     minIndexForVisible: 0,
@@ -1117,7 +1044,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                   }
                   onContentSizeChange={() => {
                     // Always scroll to bottom when content size changes on initial load or if user is near bottom
-                    if (globalUiMessages.length > 0 && isMounted() && flatListRef.current) {
+                    if (displayMessages.length > 0 && isMounted() && flatListRef.current) {
                       if (initialLoadRef.current || (!isUserScrollingRef.current && isNearBottomRef.current)) {
                         requestAnimationFrame(() => {
                           if (flatListRef.current && isMounted()) {
@@ -1128,7 +1055,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                     }
                   }}
                   onLayout={() => {
-                    if (globalUiMessages.length > 0 && isMounted() && !isUserScrollingRef.current && isNearBottomRef.current) {
+                    if (displayMessages.length > 0 && isMounted() && !isUserScrollingRef.current && isNearBottomRef.current) {
                       const timeout = setTimeout(() => {
                         scrollTimeoutsRef.current.delete(timeout);
                         if (isMounted() && !isUserScrollingRef.current && isNearBottomRef.current && flatListRef.current) {
@@ -1139,88 +1066,23 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                     }
                   }}
                 />
-                {/* Scroll to bottom button - always above input, hidden when keyboard open */}
-                {showScrollToBottom && activeTab === 'GLOBAL' && !keyboardShown && (
+                {/* Scroll to bottom button */}
+                {showScrollToBottom && activeTab === 'GLOBAL' && (
                   <SoundTouchableOpacity
-                    style={[
-                      styles.scrollToBottomButton,
-                      { bottom: globalInputContainerHeight + scaleSizeFunc(8) },
-                    ]}
+                    style={styles.scrollToBottomButton}
                     onPress={handleScrollToBottom}
                     activeOpacity={0.7}
                   >
-                    <Icon name="chevron-double-down" size={scaleSizeFunc(18)} color="#000000" />
+                    <Icon name="chevron-double-down" size={18} color="#000000" />
                   </SoundTouchableOpacity>
                 )}
-                </View>
-                {activeTab === 'GLOBAL' && (
-                  <View
-                    style={{ width: '100%', backgroundColor: '#000000' }}
-                    onLayout={e => setGlobalInputContainerHeight(e.nativeEvent.layout.height)}
-                  >
-                    {replyingTo && (
-                      <View style={styles.replyPreviewContainerGlobal}>
-                        <View style={styles.replyPreviewContentGlobal}>
-                          <Text style={styles.replyPreviewSenderGlobal}>{replyingTo.sender}</Text>
-                          <Text style={styles.replyPreviewMessageGlobal} numberOfLines={1}>
-                            {replyingTo.message}
-                          </Text>
-                        </View>
-                        <SoundTouchableOpacity
-                          onPress={() => setReplyingTo(null)}
-                          style={styles.replyCancelButtonGlobal}
-                        >
-                          <Icon name="close" size={scaleSizeFunc(20)} color="#FFFFFF" />
-                        </SoundTouchableOpacity>
-                      </View>
-                    )}
-                    <KeyboardStickyView offset={stickyOffset}>
-                      <Animated.View
-                        style={[
-                          styles.inputContainer,
-                          { width: '100%', marginBottom: 0, paddingBottom: 0 },
-                        ]}
-                      >
-                        <View style={styles.inputWrapper}>
-                          <TextInput
-                            ref={inputRef}
-                            style={styles.input}
-                            placeholder="Type your message..."
-                            placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                            value={messageText}
-                            onChangeText={setMessageText}
-                            multiline
-                            maxLength={1000}
-                            returnKeyType="send"
-                            blurOnSubmit={false}
-                            onSubmitEditing={handleSendMessage}
-                            keyboardAppearance="dark"
-                            textAlignVertical="center"
-                          />
-                        </View>
-                        <SoundTouchableOpacity
-                          style={[styles.sendButton, (!messageText.trim() || globalChatSending) && styles.sendButtonDisabled]}
-                          onPress={handleSendMessage}
-                          disabled={!messageText.trim() || globalChatSending}
-                          activeOpacity={0.7}
-                        >
-                          {globalChatSending ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <Icon name="send" size={scaleSizeFunc(20)} color="#FFFFFF" />
-                          )}
-                        </SoundTouchableOpacity>
-                      </Animated.View>
-                    </KeyboardStickyView>
-                  </View>
-                )}
-              </KeyboardAvoidingView>
+              </View>
             ) : (
               <View style={{ flex: 1 }}>
                 {/* Search Bar */}
                 <View style={styles.searchContainer}>
                   <View style={styles.searchBar}>
-                    <Icon name="magnify" size={scaleSizeFunc(20)} color="rgba(255, 255, 255, 0.5)" />
+                    <Icon name="magnify" size={20} color="rgba(255, 255, 255, 0.5)" />
                     <TextInput
                       style={styles.searchInput}
                       placeholder="Search conversations..."
@@ -1231,7 +1093,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                     />
                     {searchQuery.length > 0 && (
                       <SoundTouchableOpacity onPress={() => setSearchQuery('')}>
-                        <Icon name="close-circle" size={scaleSizeFunc(18)} color="rgba(255, 255, 255, 0.5)" />
+                        <Icon name="close-circle" size={18} color="rgba(255, 255, 255, 0.5)" />
                       </SoundTouchableOpacity>
                     )}
                   </View>
@@ -1247,7 +1109,7 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                     initialNumToRender: 10,
                     maxToRenderPerBatch: 5,
                     windowSize: 10,
-                    removeClippedSubviews: Platform.OS === 'android',
+                    removeClippedSubviews: platform.isAndroid,
                     updateCellsBatchingPeriod: 50,
                   })}
                   getItemLayout={(data, index) => ({
@@ -1273,166 +1135,228 @@ const ChatsScreen: React.FC<ChatsScreenProps> = () => {
                 />
               </View>
             )}
-          </View>
-        </SafeAreaView>
-      </View>
 
-      {/* Global Chat Menu Modal */}
-      <Modal
-        visible={showGlobalChatMenu}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowGlobalChatMenu(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowGlobalChatMenu(false)}
-        >
-          <View
-            style={[
-              styles.modalContent,
-              {
-                position: 'absolute',
-                top: menuButtonLayout.y > 0 ? menuButtonLayout.y + menuButtonLayout.height + scaleSizeFunc(8) : scaleSizeFunc(60),
-                right: scaleSizeFunc(16),
-              }
-            ]}
-          >
-            <SoundTouchableOpacity
-              style={styles.modalMenuItem}
-              onPress={async () => {
-                await toggleGlobalChat();
-                setShowGlobalChatMenu(false);
-              }}
-              disabled={muteLoading}
-              activeOpacity={0.7}
-            >
-              <Icon
-                name={isGlobalChatMuted ? "bell-off" : "bell-outline"}
-                size={scaleSizeFunc(20)}
-                color={isGlobalChatMuted ? "#EF4444" : "#FFFFFF"}
-                style={styles.modalMenuIcon}
-              />
-              <Text style={styles.modalMenuText}>
-                {isGlobalChatMuted ? "Unmute Group Chat" : "Mute Group Chat"}
-              </Text>
-            </SoundTouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
-
-      {/* Personal Chat Menu Modal */}
-      <Modal
-        visible={showPersonalChatMenu}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowPersonalChatMenu(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowPersonalChatMenu(false)}
-        >
-          <View
-            style={[
-              styles.modalContent,
-              {
-                position: 'absolute',
-                top: personalMenuButtonLayout.y > 0 ? personalMenuButtonLayout.y + personalMenuButtonLayout.height + scaleSizeFunc(8) : scaleSizeFunc(60),
-                right: scaleSizeFunc(16),
-              }
-            ]}
-          >
-            <SoundTouchableOpacity
-              style={styles.modalMenuItem}
-              onPress={() => {
-                setShowPersonalChatMenu(false);
-                setShowBlockedUsersModal(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Icon
-                name="account-cancel"
-                size={scaleSizeFunc(20)}
-                color="#9333EA"
-                style={styles.modalMenuIcon}
-              />
-              <Text style={styles.modalMenuText}>View Blocked Users</Text>
-            </SoundTouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
-
-      {/* Blocked Users Modal */}
-      <Modal
-        visible={showBlockedUsersModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowBlockedUsersModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.blockedUsersModalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Blocked Users</Text>
-              <SoundTouchableOpacity
-                onPress={() => setShowBlockedUsersModal(false)}
-                style={styles.modalCloseButton}
-              >
-                <Icon name="close" size={scaleSizeFunc(24)} color="#FFFFFF" />
-              </SoundTouchableOpacity>
-            </View>
-
-            {blockedUsers.length === 0 ? (
-              <View style={styles.emptyBlockedUsers}>
-                <Icon name="account-check" size={scaleSizeFunc(48)} color="#9CA3AF" />
-                <Text style={styles.emptyBlockedUsersText}>No blocked users</Text>
-                <Text style={styles.emptyBlockedUsersSubtext}>You haven't blocked any users yet</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={blockedUsers}
-                keyExtractor={(item: any) => item.user_id?.toString() || Math.random().toString()}
-                {...getOptimizedFlatListProps(70, {
-                  initialNumToRender: 10,
-                  maxToRenderPerBatch: 5,
-                  windowSize: 10,
-                  removeClippedSubviews: Platform.OS === 'android',
-                })}
-                renderItem={({ item }: { item: any }) => (
-                  <View style={styles.blockedUserItem}>
-                    <View style={styles.blockedUserInfo}>
-                      <View style={styles.blockedUserAvatar}>
-                        <Text style={styles.blockedUserAvatarText}>
-                          {item.username?.charAt(0).toUpperCase() || '?'}
-                        </Text>
-                      </View>
-                      <View style={styles.blockedUserDetails}>
-                        <Text style={styles.blockedUserName}>{item.username || 'Unknown User'}</Text>
-                        <Text style={styles.blockedUserId}>ID: {item.user_id}</Text>
-                      </View>
+            {/* Input Field - Only show for GLOBAL tab */}
+            {activeTab === 'GLOBAL' && (
+              <View>
+                {/* Reply preview - above input (WhatsApp style) */}
+                {replyingTo && (
+                  <View style={styles.replyPreviewContainerGlobal}>
+                    <View style={styles.replyPreviewContentGlobal}>
+                      <Text style={styles.replyPreviewSenderGlobal}>{replyingTo.sender}</Text>
+                      <Text style={styles.replyPreviewMessageGlobal} numberOfLines={1}>
+                        {replyingTo.message}
+                      </Text>
                     </View>
                     <SoundTouchableOpacity
-                      style={styles.unblockButton}
-                      onPress={async () => {
-                        try {
-                          await unblockUserMutation(item.user_id).unwrap();
-                          refetchBlockedUsers();
-                          Alert.alert('Success', 'User has been unblocked');
-                        } catch (error: any) {
-                          Alert.alert('Error', 'Failed to unblock user');
-                        }
-                      }}
+                      onPress={() => setReplyingTo(null)}
+                      style={styles.replyCancelButtonGlobal}
                     >
-                      <Icon name="lock-open" size={scaleSizeFunc(18)} color="#059669" />
-                      <Text style={styles.unblockButtonText}>Unblock</Text>
+                      <Icon name="close" size={20} color="#FFFFFF" />
                     </SoundTouchableOpacity>
                   </View>
                 )}
-              />
+                <View
+                  style={[
+                    styles.inputContainer,
+                    platform.isAndroid && keyboardShown && {
+                      paddingBottom: 0,
+                      marginBottom: 0
+                    }
+                  ]}
+                >
+                  <View style={styles.inputWrapper}>
+                    <TextInput
+                      ref={inputRef}
+                      style={styles.input}
+                      placeholder="Type your message..."
+                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                      value={messageText}
+                      onChangeText={setMessageText}
+                      multiline
+                      maxLength={1000}
+                      returnKeyType="send"
+                      blurOnSubmit={false}
+                      onSubmitEditing={handleSendMessage}
+                      keyboardAppearance="dark"
+                      textAlignVertical="center"
+                    />
+                  </View>
+                  <SoundTouchableOpacity
+                    style={[styles.sendButton, (!messageText.trim() || globalChatSending) && styles.sendButtonDisabled]}
+                    onPress={handleSendMessage}
+                    disabled={!messageText.trim() || globalChatSending}
+                    activeOpacity={0.7}
+                  >
+                    {globalChatSending ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Icon name="send" size={20} color="#FFFFFF" />
+                    )}
+                  </SoundTouchableOpacity>
+                </View>
+              </View>
             )}
-          </View>
-        </View>
-      </Modal >
-    </ScreenErrorBoundary >
+          </KeyboardManager>
+
+          {/* Global Chat Menu Modal */}
+          <Modal
+            visible={showGlobalChatMenu}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowGlobalChatMenu(false)}
+          >
+            <Pressable
+              style={styles.modalOverlay}
+              onPress={() => setShowGlobalChatMenu(false)}
+            >
+              <View
+                style={[
+                  styles.modalContent,
+                  {
+                    position: 'absolute',
+                    top: menuButtonLayout.y > 0 ? menuButtonLayout.y + menuButtonLayout.height + scaleSizeFunc(8) : scaleSizeFunc(60),
+                    right: scaleSizeFunc(16),
+                  }
+                ]}
+              >
+                <SoundTouchableOpacity
+                  style={styles.modalMenuItem}
+                  onPress={async () => {
+                    await toggleGlobalChat();
+                    setShowGlobalChatMenu(false);
+                  }}
+                  disabled={muteLoading}
+                  activeOpacity={0.7}
+                >
+                  <Icon
+                    name={isGlobalChatMuted ? "bell-off" : "bell-outline"}
+                    size={20}
+                    color={isGlobalChatMuted ? "#EF4444" : "#FFFFFF"}
+                    style={styles.modalMenuIcon}
+                  />
+                  <Text style={styles.modalMenuText}>
+                    {isGlobalChatMuted ? "Unmute Group Chat" : "Mute Group Chat"}
+                  </Text>
+                </SoundTouchableOpacity>
+              </View>
+            </Pressable>
+          </Modal>
+
+          {/* Personal Chat Menu Modal */}
+          <Modal
+            visible={showPersonalChatMenu}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowPersonalChatMenu(false)}
+          >
+            <Pressable
+              style={styles.modalOverlay}
+              onPress={() => setShowPersonalChatMenu(false)}
+            >
+              <View
+                style={[
+                  styles.modalContent,
+                  {
+                    position: 'absolute',
+                    top: personalMenuButtonLayout.y > 0 ? personalMenuButtonLayout.y + personalMenuButtonLayout.height + scaleSizeFunc(8) : scaleSizeFunc(60),
+                    right: scaleSizeFunc(16),
+                  }
+                ]}
+              >
+                <SoundTouchableOpacity
+                  style={styles.modalMenuItem}
+                  onPress={() => {
+                    setShowPersonalChatMenu(false);
+                    setShowBlockedUsersModal(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Icon
+                    name="account-cancel"
+                    size={20}
+                    color="#9333EA"
+                    style={styles.modalMenuIcon}
+                  />
+                  <Text style={styles.modalMenuText}>View Blocked Users</Text>
+                </SoundTouchableOpacity>
+              </View>
+            </Pressable>
+          </Modal>
+
+          {/* Blocked Users Modal */}
+          <Modal
+            visible={showBlockedUsersModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowBlockedUsersModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.blockedUsersModalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Blocked Users</Text>
+                  <SoundTouchableOpacity
+                    onPress={() => setShowBlockedUsersModal(false)}
+                    style={styles.modalCloseButton}
+                  >
+                    <Icon name="close" size={24} color="#FFFFFF" />
+                  </SoundTouchableOpacity>
+                </View>
+
+                {blockedUsers.length === 0 ? (
+                  <View style={styles.emptyBlockedUsers}>
+                    <Icon name="account-check" size={48} color="#9CA3AF" />
+                    <Text style={styles.emptyBlockedUsersText}>No blocked users</Text>
+                    <Text style={styles.emptyBlockedUsersSubtext}>You haven't blocked any users yet</Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={blockedUsers}
+                    keyExtractor={(item: any) => item.user_id?.toString() || Math.random().toString()}
+                    {...getOptimizedFlatListProps(70, {
+                      initialNumToRender: 10,
+                      maxToRenderPerBatch: 5,
+                      windowSize: 10,
+                      removeClippedSubviews: Platform.OS === 'android',
+                    })}
+                    renderItem={({ item }: { item: any }) => (
+                      <View style={styles.blockedUserItem}>
+                        <View style={styles.blockedUserInfo}>
+                          <View style={styles.blockedUserAvatar}>
+                            <Text style={styles.blockedUserAvatarText}>
+                              {item.username?.charAt(0).toUpperCase() || '?'}
+                            </Text>
+                          </View>
+                          <View style={styles.blockedUserDetails}>
+                            <Text style={styles.blockedUserName}>{item.username || 'Unknown User'}</Text>
+                            <Text style={styles.blockedUserId}>ID: {item.user_id}</Text>
+                          </View>
+                        </View>
+                        <SoundTouchableOpacity
+                          style={styles.unblockButton}
+                          onPress={async () => {
+                            try {
+                              await unblockUserMutation(item.user_id).unwrap();
+                              refetchBlockedUsers();
+                              Alert.alert('Success', 'User has been unblocked');
+                            } catch (error: any) {
+                              Alert.alert('Error', 'Failed to unblock user');
+                            }
+                          }}
+                        >
+                          <Icon name="lock-open" size={18} color="#059669" />
+                          <Text style={styles.unblockButtonText}>Unblock</Text>
+                        </SoundTouchableOpacity>
+                      </View>
+                    )}
+                  />
+                )}
+              </View>
+            </View>
+          </Modal>
+        </SafeAreaView>
+      </View>
+    </ScreenErrorBoundary>
   );
 };
 
@@ -1441,11 +1365,13 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
   container: {
     flex: 1,
     width: '100%',
+    height: '100%',
     backgroundColor: '#000000', // Black background
   },
   safeArea: {
     flex: 1,
     width: '100%',
+    height: '100%',
   },
   header: {
     paddingHorizontal: getHorizontalSpacing(2),
@@ -1513,22 +1439,6 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
     backgroundColor: '#36393F',
     borderRadius: scaleSize(16),
     overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: getHorizontalSpacing(2),
-    paddingVertical: getVerticalSpacing(2),
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: '#2C2F33',
-    minHeight: scaleSize(50),
-  },
-  modalTitle: {
-    fontSize: scaleFont(20),
-    fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   modalCloseButton: {
     padding: scaleSize(4),
@@ -1644,7 +1554,6 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
   },
   messagesList: {
     flex: 1,
-    minHeight: 0,
   },
   messagesContent: {
     paddingVertical: getVerticalSpacing(1.5),
@@ -1692,10 +1601,10 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
   },
   messageProfileContainer: {
     position: 'relative',
-    width: scaleSize(32),
-    height: scaleSize(32),
-    marginRight: getHorizontalSpacing(0.25),
-    overflow: 'visible',
+    width: scaleSize(32), // Keep original size
+    height: scaleSize(32), // Keep original size
+    marginRight: 2, // 2px gap between profile and username
+    overflow: 'visible', // Allow frame to extend outside
     minWidth: scaleSize(32),
     minHeight: scaleSize(32),
   },
@@ -1705,8 +1614,8 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
     // Container is 32px, avatar is 24px centered at (4,4), frame is 34px
     // To center 34px frame around 24px avatar: offset = (34-24)/2 = 5px
     // Avatar is at (4,4), so frame at (4-5, 4-5) = (-1, -1) relative to container
-    top: -scaleSize(1),
-    left: -scaleSize(1),
+    top: -1, // Frame extends 1px outside container on top
+    left: -1, // Frame extends 1px outside container on left
     width: scaleSize(34), // 24 (avatar) + 10px = 34px to cover around avatar
     height: scaleSize(34), // 24 (avatar) + 10px = 34px to cover around avatar
     zIndex: 3,
@@ -1743,8 +1652,8 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
   messageBadge: {
     width: scaleSize(16),
     height: scaleSize(16),
-    marginLeft: getHorizontalSpacing(0.25),
-    flexShrink: 0,
+    marginLeft: 2, // 2px gap between username and badge
+    flexShrink: 0, // Prevent badge from being compressed/scrolling
   },
   otherMessageBubble: {
     backgroundColor: '#40444B', // Discord-like message bubble color
@@ -1767,13 +1676,13 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
   },
   inputContainer: {
     flexDirection: 'row',
-    paddingHorizontal: getHorizontalSpacing(1.5),
-    paddingVertical: getVerticalSpacing(1),
-    backgroundColor: '#000000',
+    paddingHorizontal: getHorizontalSpacing(2),
+    paddingVertical: getVerticalSpacing(1.5),
+    backgroundColor: '#000000', // Black background
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'flex-end',
-    minHeight: scaleSize(50),
+    minHeight: scaleSize(60),
   },
   inputWrapper: {
     flex: 1,
@@ -1865,8 +1774,8 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
     // Container is 50px, avatar is 50px at (0,0), frame is 60px
     // To center 60px frame around 50px avatar: offset = (60-50)/2 = 5px
     // Avatar is at (0,0), so frame at (0-5, 0-5) = (-5, -5) relative to container
-    top: -scaleSize(5),
-    left: -scaleSize(5),
+    top: -5, // Frame extends 5px outside container on top
+    left: -5, // Frame extends 5px outside container on left
     width: scaleSize(60), // 50 (avatar) + 10px = 60px to cover around avatar
     height: scaleSize(60), // 50 (avatar) + 10px = 60px to cover around avatar
     zIndex: 3,
@@ -1907,10 +1816,10 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
     color: '#FFFFFF',
   },
   personalChatBadge: {
-    width: scaleSize(16),
-    height: scaleSize(16),
-    marginLeft: getHorizontalSpacing(0.125),
-    marginTop: -scaleSize(2),
+    width: 16,
+    height: 16,
+    marginLeft: 1, // 1px gap between username and badge
+    marginTop: -2, // 2px up
     flexShrink: 0,
   },
   // Reply preview above input in global chat (WhatsApp style)
@@ -2032,22 +1941,6 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
     bottom: getVerticalSpacing(1.5),
     left: scaleSize(54),
   },
-  dateSeparatorContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginVertical: getVerticalSpacing(2),
-  },
-  dateSeparatorPill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: getHorizontalSpacing(1.5),
-    paddingVertical: getVerticalSpacing(0.5),
-    borderRadius: scaleSize(12),
-  },
-  dateSeparatorText: {
-    fontSize: scaleFont(12),
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '600',
-  },
   scrollToBottomButton: {
     position: 'absolute',
     bottom: getVerticalSpacing(2),
@@ -2066,25 +1959,25 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
     zIndex: 1000,
   },
   searchContainer: {
-    paddingHorizontal: getHorizontalSpacing(2),
-    paddingVertical: getVerticalSpacing(1.5),
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: 'transparent',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: scaleSize(12),
-    paddingHorizontal: getHorizontalSpacing(1.5),
-    height: scaleSize(40),
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 40,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   searchInput: {
     flex: 1,
     color: '#FFFFFF',
-    fontSize: scaleFont(14),
-    marginLeft: getHorizontalSpacing(1),
+    fontSize: 14,
+    marginLeft: 8,
     paddingVertical: 0,
   },
   // ChatMessageItem Compatibility Styles
@@ -2188,17 +2081,17 @@ const createStyles = (scaleFont: (size: number) => number, scaleSize: (size: num
     fontSize: scaleFont(12),
   },
   encryptedMessageContainer: { alignSelf: 'center', width: '90%' },
-  encryptedBubble: { backgroundColor: '#333', borderRadius: scaleSize(10), padding: scaleSize(10) },
+  encryptedBubble: { backgroundColor: '#333', borderRadius: 10, padding: 10 },
   encryptedTextContainer: { flexDirection: 'row', alignItems: 'center' },
-  encryptedMessageText: { color: '#ccc', marginLeft: getHorizontalSpacing(1) },
-  encryptionIndicator: { marginLeft: getHorizontalSpacing(0.625) },
-  systemMessage: { alignSelf: 'center', marginVertical: getVerticalSpacing(0.625) },
-  systemMessageText: { color: '#aaa', fontSize: scaleFont(12) },
-  notificationMessage: { alignSelf: 'center', marginVertical: getVerticalSpacing(0.625) },
-  notificationMessageText: { color: '#aaa', fontSize: scaleFont(12) },
-  statusIconContainer: { marginLeft: getHorizontalSpacing(0.5) },
-  messageImageContainer: { marginTop: getVerticalSpacing(0.5) },
-  messageImage: { width: scaleSize(200), height: scaleSize(150), borderRadius: scaleSize(8) },
+  encryptedMessageText: { color: '#ccc', marginLeft: 8 },
+  encryptionIndicator: { marginLeft: 5 },
+  systemMessage: { alignSelf: 'center', marginVertical: 5 },
+  systemMessageText: { color: '#aaa', fontSize: 12 },
+  notificationMessage: { alignSelf: 'center', marginVertical: 5 },
+  notificationMessageText: { color: '#aaa', fontSize: 12 },
+  statusIconContainer: { marginLeft: 4 },
+  messageImageContainer: { marginTop: 4 },
+  messageImage: { width: 200, height: 150, borderRadius: 8 },
   messageContentContainer: { flexDirection: 'row', alignItems: 'flex-end' },
 });
 

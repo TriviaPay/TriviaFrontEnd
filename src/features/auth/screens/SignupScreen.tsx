@@ -59,6 +59,7 @@ import ExistingUserPopup from '../../../core/components/ExistingUserPopup';
 // Services
 import { descopeAuthService } from '../../../services/descopeAuthService';
 import { keychainStorage } from '../../../services/keychainStorage';
+import { authService } from '../../../services/authService';
 import { apiService } from '../../../services/apiService';
 import { logger } from '../../../lib/utils/logger';
 import { prefetchCriticalData } from '../../../services/prefetchService';
@@ -166,7 +167,24 @@ const SignupScreen: React.FC = () => {
   const { triggerHaptic } = useHapticFeedback();
   usePlatformOptimization();
   useAndroidBackButton(() => {
-    // Allow default navigation back behavior
+    // If OTP is showing, go back to email input
+    if (showOtpVerification) {
+      setShowOtpVerification(false);
+      return true;
+    }
+    // If password setup is showing, go back to email verification start
+    if (emailVerified && currentStep === 0) {
+      setEmailVerified(false);
+      setShowPasswordFields(false);
+      setAuthStep(AUTH_STEPS.EMAIL_VERIFICATION);
+      return true;
+    }
+    // If in profile step, go back to credentials step
+    if (currentStep === 1) {
+      slideToStep(0);
+      return true;
+    }
+    // Otherwise allow default behavior (usually exit if at start)
     return false;
   });
 
@@ -179,6 +197,15 @@ const SignupScreen: React.FC = () => {
   useEffect(() => {
     if (descope) {
       setDescopeReady(true);
+
+      // BACKGROUND PREFETCH: Trigger prefetch on mount to have data ready (e.g., countries)
+      // This happens silently without blocking the UI
+      try {
+        prefetchCriticalData();
+        logger.debug('Background prefetch triggered on Signup mount', 'SIGNUP');
+      } catch (err) {
+        logger.warn('Initial prefetch failed', 'SIGNUP', err);
+      }
     } else {
       setDescopeReady(false);
     }
@@ -262,6 +289,18 @@ const SignupScreen: React.FC = () => {
   const [resendCountdown, setResendCountdown] = useState(0);
   const [footerHeight, setFooterHeight] = useState(0);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+
+  // Pagination and Animation states
+  const [currentStep, setCurrentStep] = useState(0); // 0: Credentials, 1: Profile
+  const horizontalAnimation = useRef(new Animated.Value(0)).current;
+
+  const slideToStep = (step: number) => {
+    Animated.timing(horizontalAnimation, {
+      toValue: step,
+      duration: 500,
+      useNativeDriver: true,
+    }).start(() => setCurrentStep(step));
+  };
 
   // Debug: Log keyboard visibility changes
   useEffect(() => { }, [keyboardVisible]);
@@ -591,83 +630,64 @@ const SignupScreen: React.FC = () => {
     }
   }, [handleOtpComplete]);
 
-  // Check email availability with debouncing
-  const checkEmailAvailability = async (emailToCheck: string) => {
-    if (!validateEmail(emailToCheck)) {
-      setEmailAvailable(null);
-      setEmailChecking(false);
-      return;
-    }
+  // Check email availability - helper for verifyEmail
+  const checkEmailAvailability = async (emailToCheck: string): Promise<boolean | null> => {
+    if (!validateEmail(emailToCheck)) return null;
 
     try {
       setEmailChecking(true);
-
       const response = await apiService.checkEmailAvailability(emailToCheck);
-
       if (response.success) {
         const available = response.data?.available ?? null;
         setEmailAvailable(available);
-
-        if (available === false) {
-          // Email exists - show message below field, disable verify button
-          // Clear any previous verification state
-          setEmailVerified(false);
-          setShowOtpVerification(false);
-          setMagicLinkSent(false);
-        } else if (available === true) {
-          // Reset verification state for new email
-          setEmailVerified(false);
-          setShowOtpVerification(false);
-          setMagicLinkSent(false);
-        }
-      } else {
-        setEmailAvailable(null);
+        return available;
       }
     } catch (error) {
-      setEmailAvailable(null);
+      logger.error('Email availability check failed', 'API', error);
     } finally {
       setEmailChecking(false);
     }
+    return null;
   };
 
   // Verify email function - following exact flow
   const verifyEmail = async () => {
-    if (!validateEmail(email)) {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail || !validateEmail(normalizedEmail)) {
       setErrors({ email: 'Please enter a valid email address' });
       return;
     }
 
-    // Check email availability first - if not available, don't proceed
-    if (emailAvailable === false) {
-      return;
-    }
-
-    clearError();
-    setErrors({});
-    setVerificationMessage('');
-    setIsVerifyingOtp(false);
-
     try {
-      // STEP 1: Send OTP via Descope (using real service - no more mocks!)
+      // FIRST: Check email availability manually
+      const isAvailable = await checkEmailAvailability(normalizedEmail);
 
+      if (isAvailable === false) {
+        // User already exists - show "Go to Login?" popup
+        setExistingUserIdentifier(normalizedEmail);
+        setExistingUserType('email');
+        setShowExistingUserPopup(true);
+        return;
+      }
+
+      // SECOND: Send OTP via Descope
       if (!descope || !descopeReady) {
         throw new Error('Descope SDK not ready. Please wait and try again.');
       }
 
-      // Call Descope SDK directly like old code
-      const response = await descope.otp.signUpOrIn.email(email);
+      const response = await descope.otp.signUpOrIn.email(normalizedEmail);
 
       const result = {
         success: response.ok,
-        maskedEmail: email,
+        maskedEmail: normalizedEmail,
         message: response.ok ? 'OTP sent to your email' : 'Failed to send OTP',
         error: response.error?.errorMessage || response.error?.errorDescription,
       };
 
       if (result.success) {
         // OTP sent successfully
-        setVerifiedEmail(email);
-        setVerificationMessage(`Verification code sent to ${email}. Enter the 6-digit code below.`);
+        setVerifiedEmail(normalizedEmail);
+        setVerificationMessage(`Verification code sent to ${normalizedEmail}. Enter the 6-digit code below.`);
         setShowOtpVerification(true);
         setResendCountdown(60);
         setEmailVerified(false);
@@ -678,7 +698,7 @@ const SignupScreen: React.FC = () => {
 
         if (errorMsg.includes('already exists') || errorMsg.includes('User already exists')) {
           // User already exists - show "Go to Login?" popup
-          setExistingUserIdentifier(email);
+          setExistingUserIdentifier(normalizedEmail);
           setExistingUserType('email');
           setShowExistingUserPopup(true);
         } else {
@@ -760,13 +780,16 @@ const SignupScreen: React.FC = () => {
       return;
     }
 
-    // Clear errors and proceed
+    // Clear errors and proceed to next screen
     setErrors({});
     setShowNextPasswordButton(false);
     setShowUsernameField(true);
-    setShowNextUsernameButton(true); // Enable Next button for username step
+    setShowNextUsernameButton(true);
 
-    // Animate username field
+    // Slide to the next screen (Profile info)
+    slideToStep(1);
+
+    // Animate username field (keep existing animation logic)
     Animated.timing(slideInUsername, {
       toValue: 0,
       duration: 500,
@@ -1026,14 +1049,14 @@ const SignupScreen: React.FC = () => {
       throw new Error('Descope SDK not ready. Please wait and try again.');
     }
 
-    // Store the session token in keychain storage (must be completed before bindPassword)
-    logger.debug('🔑 Storing session token in keychain storage...');
+    // Store the session token in authService (this syncs keychain and clears potential stale caches)
+    logger.debug('🔑 Synchronizing session token with authService...');
     try {
-      await keychainStorage.storeAccessToken(token);
-      logger.debug('✅ Session token stored successfully in keychain');
+      await authService.setSessionToken(token);
+      logger.debug('✅ Session token synchronized successfully');
     } catch (err) {
-      logger.debug('❌ Failed to store session token:', err);
-      throw new Error('Failed to store session token. Please try again.');
+      logger.debug('❌ Failed to synchronize session token:', err);
+      throw new Error('Failed to synchronize session token. Please try again.');
     }
 
     // Determine referral code to send
@@ -1048,9 +1071,16 @@ const SignupScreen: React.FC = () => {
     }
 
     // Call the actual bindPassword API via Redux thunk
+    const finalEmail = (verifiedEmail || email).trim().toLowerCase();
+    logger.log('BIND PASSWORD PAYLOAD', 'SIGNUP', {
+      email: finalEmail,
+      username: username.trim(),
+      country: country || '',
+    });
+
     const bindPasswordResult = await dispatch(
       bindPassword({
-        email: verifiedEmail || email,
+        email: finalEmail,
         password,
         username: username.trim(), // Trim spaces from username
         country: country || '',
@@ -1127,6 +1157,7 @@ const SignupScreen: React.FC = () => {
 
   // Final account creation
   const handleSignup = async () => {
+    const normalizedEmail = (email || '').trim().toLowerCase();
     try {
       setErrors({});
       // Removed blocking global loader to allow immediate interaction as requested
@@ -1134,7 +1165,7 @@ const SignupScreen: React.FC = () => {
 
       // Validate all fields before creating account
       const newErrors: Record<string, string> = {};
-      if (!validateEmail(email)) newErrors.email = 'Please enter a valid email address';
+      if (!validateEmail(normalizedEmail)) newErrors.email = 'Please enter a valid email address';
       if (!validatePassword()) newErrors.password = 'Password validation failed';
       if (!validateUsername()) newErrors.username = 'Username validation failed';
       if (!country) newErrors.country = 'Please select your country';
@@ -1284,12 +1315,12 @@ const SignupScreen: React.FC = () => {
         statusBarStyle="light-content"
         backgroundColor="transparent"
         translucent={true}
-        edges={['top', 'bottom', 'left', 'right']}
+        edges={['top', 'left', 'right']}
       >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <View
             style={{
@@ -1300,7 +1331,6 @@ const SignupScreen: React.FC = () => {
             <View
               style={{
                 flex: 1,
-                paddingHorizontal: getHorizontalSpacing(2),
                 justifyContent: 'space-between',
               }}
             >
@@ -1318,9 +1348,7 @@ const SignupScreen: React.FC = () => {
                     {
                       color: 'white',
                       textAlign: 'center',
-                      fontSize: keyboardVisible
-                        ? scaleFont(isTablet ? 24 : isSmallDevice ? 18 : 20)
-                        : scaleFont(isTablet ? 32 : isSmallDevice ? 24 : 28),
+                      fontSize: scaleFont(isTablet ? 32 : isSmallDevice ? 24 : 28),
                     },
                   ]}
                   allowFontScaling={true}
@@ -1353,21 +1381,15 @@ const SignupScreen: React.FC = () => {
                   marginVertical: keyboardVisible ? getVerticalSpacing(0.5) : getVerticalSpacing(1),
                   transform: [{ scale: animationScale }],
                   opacity: keyboardShown ? 0.7 : 1,
-                  height: keyboardVisible
-                    ? scaleHeight(isTablet ? 40 : isSmallDevice ? 30 : 35)
-                    : scaleHeight(isTablet ? 80 : isSmallDevice ? 40 : 70),
+                  height: scaleHeight(isTablet ? 80 : isSmallDevice ? 40 : 70),
                 }}
               >
                 <LottieView
                   ref={animationRef}
                   source={flirtingDogAnimation}
                   style={{
-                    width: keyboardVisible
-                      ? scaleWidth(isTablet ? 40 : isSmallDevice ? 30 : 35)
-                      : scaleWidth(isTablet ? 80 : isSmallDevice ? 40 : 70),
-                    height: keyboardVisible
-                      ? scaleHeight(isTablet ? 40 : isSmallDevice ? 30 : 35)
-                      : scaleHeight(isTablet ? 80 : isSmallDevice ? 40 : 70),
+                    width: scaleWidth(isTablet ? 80 : isSmallDevice ? 40 : 70),
+                    height: scaleHeight(isTablet ? 80 : isSmallDevice ? 40 : 70),
                   }}
                   autoPlay
                   loop
@@ -1397,392 +1419,255 @@ const SignupScreen: React.FC = () => {
                   }}
                   scrollEnabled={true}
                 >
-                  {/* Email Field */}
-                  <View style={{ marginBottom: getVerticalSpacing(2) }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            backgroundColor: 'white',
-                            borderRadius: scaleSize(12),
-                            paddingHorizontal: getHorizontalSpacing(2),
-                            paddingVertical: getVerticalSpacing(1),
-                            // Removed conditional marginBottom to keep alignment perfect
-                            marginBottom: 0,
-                            minHeight: scaleHeight(44), // Ensure consistent height with button
-                          }}
-                        >
-                          <Icon
-                            name="mail"
-                            size={scaleSize(20)}
-                            color="#FF6B35"
-                            style={{ marginRight: getHorizontalSpacing(1) }}
-                          />
-                          <TextInput
-                            style={{
-                              flex: 1,
-                              color: '#000',
-                              fontSize: scaleFont(16),
-                              paddingVertical: getVerticalSpacing(0.5),
-                            }}
-                            value={email}
-                            onChangeText={text => {
-                              // Auto-append gmail.com only if user just typed @ (not deleting)
-                              let finalText = text;
-                              const wasTyping =
-                                text.length > prevEmail.length ||
-                                (text.length === prevEmail.length && text !== prevEmail);
-                              const justTypedAt = text.endsWith('@') && !prevEmail.endsWith('@');
-
-                              if (wasTyping && justTypedAt) {
-                                // User just typed @, auto-append gmail.com
-                                finalText = text + 'gmail.com';
-                              }
-
-                              setPrevEmail(finalText);
-                              setEmail(finalText);
-                              setEmailVerified(false);
-                              setEmailAvailable(null);
-                              if (errors.email) {
-                                setErrors(prev => ({ ...prev, email: '' }));
-                              }
-
-                              // Clear previous timeout
-                              if (emailCheckTimeout) {
-                                clearTimeout(emailCheckTimeout);
-                              }
-
-                              // Instant debounced email availability check (optimized)
-                              if (finalText && validateEmail(finalText)) {
-                                const timeout = setTimeout(async () => {
-                                  await checkEmailAvailability(finalText);
-                                }, 300); // 300ms delay for better response
-                                setEmailCheckTimeout(timeout);
-                              } else {
-                                // Clear availability if email is invalid
-                                setEmailAvailable(null);
-                                setEmailChecking(false);
-                              }
-                            }}
-                            placeholder="Email"
-                            placeholderTextColor="#999"
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoComplete="email"
-                            textContentType="emailAddress"
-                            editable={!emailVerified}
-                            onFocus={() => setActiveField('email')}
-                            onBlur={() => {
-                              setActiveField(null);
-                            }}
-                            selectionColor="#FF6B35"
-                            cursorColor="#FF6B35"
-                          />
-                        </View>
-                      </View>
-
-                      {!emailVerified && !showOtpVerification && !magicLinkSent && (
-                        <TouchableOpacity
-                          onPress={verifyEmail}
-                          disabled={
-                            authLoading || !validateEmail(email) || emailAvailable === false
-                          }
-                          style={{
-                            marginLeft: getHorizontalSpacing(1),
-                            backgroundColor:
-                              authLoading || !validateEmail(email) || emailAvailable === false
-                                ? '#999999'
-                                : '#FF6B35',
-                            paddingVertical: getVerticalSpacing(1), // Matches input container
-                            paddingHorizontal: getHorizontalSpacing(1.5),
-                            borderRadius: scaleSize(12), // Match input container radius
-                            marginBottom: 0,
-                            opacity:
-                              authLoading || !validateEmail(email) || emailAvailable === false
-                                ? 0.5
-                                : 1,
-                            justifyContent: 'center', // Center content
-                            alignItems: 'center',
-                            minHeight: scaleHeight(44), // Ensure consistent height
-                          }}
-                        >
-                          {authLoading || emailChecking ? (
-                            <Text
-                              style={[
-                                typography.button,
-                                { color: 'white', fontSize: scaleFont(14) },
-                              ]}
-                            >
-                              ...
-                            </Text>
-                          ) : (
-                            <Text
-                              style={[
-                                typography.button,
-                                { color: 'white', fontSize: scaleFont(14) },
-                              ]}
-                            >
-                              Verify
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                      )}
-
-                      {magicLinkSent && !emailVerified && (
-                        <View
-                          style={{
-                            marginLeft: getHorizontalSpacing(1),
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Icon name="mail" size={scaleSize(24)} color="#FF6B35" />
-                          <Text
-                            style={[
-                              typography.caption,
-                              {
-                                color: '#FF6B35',
-                                fontSize: scaleFont(10),
-                                textAlign: 'center',
-                                marginTop: 2,
-                              },
-                            ]}
-                          >
-                            Code Sent
-                          </Text>
-                        </View>
-                      )}
-
-                      {emailVerified && (
-                        <Animated.View
-                          style={{
-                            opacity: fadeInVerified,
-                            marginLeft: getHorizontalSpacing(1),
-                          }}
-                        >
-                          <Icon name="check-circle" size={scaleSize(24)} color="#FFD700" />
-                        </Animated.View>
-                      )}
-                    </View>
-
-                    {/* Email availability status & Errors - Moved OUTSIDE the row for alignment */}
-                    <View style={{ paddingHorizontal: getHorizontalSpacing(0.5) }}>
-                      {errors.email && (
-                        <Text
-                          style={{
-                            color: '#FF6B6B',
-                            fontSize: scaleFont(12),
-                            marginTop: getVerticalSpacing(0.5),
-                          }}
-                        >
-                          {errors.email}
-                        </Text>
-                      )}
-
-                      {email && validateEmail(email) && emailAvailable !== null && (
-                        <View
-                          style={{
-                            marginTop: getVerticalSpacing(0.5),
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                          }}
-                        >
-                          {emailAvailable === true ? (
-                            <Text
-                              style={[
-                                typography.bodySmall,
-                                {
-                                  color: 'white',
-                                  fontSize: scaleFont(12),
-                                  fontWeight: '600',
-                                },
-                              ]}
-                            >
-                              ✓ Email Available - You can sign up
-                            </Text>
-                          ) : emailAvailable === false ? (
-                            <Text
-                              style={[
-                                typography.bodySmall,
-                                {
-                                  color: 'white',
-                                  fontSize: scaleFont(12),
-                                  fontWeight: '600',
-                                },
-                              ]}
-                            >
-                              ✗ Email Already Exists - Please login instead
-                            </Text>
-                          ) : null}
-                        </View>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* OTP Verification - Show inline when verification is needed */}
-                  {showOtpVerification && (
-                    <View
+                  <View style={{ flexDirection: 'row', width: width * 2 }}>
+                    {/* STEP 1: Credentials (Email, OTP, Password) */}
+                    <Animated.View
                       style={{
+                        width: width,
+                        paddingHorizontal: getHorizontalSpacing(2),
                         alignItems: 'center',
-                        marginVertical: getVerticalSpacing(2),
-                        marginBottom: getVerticalSpacing(2),
+                        justifyContent: 'center',
+                        flex: 1,
+                        transform: [
+                          {
+                            translateX: horizontalAnimation.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, -width],
+                            }),
+                          },
+                        ],
                       }}
                     >
-                      <OtpInput
-                        length={6}
-                        onComplete={handleOtpComplete}
-                        onResend={handleResendOtp}
-                        error={errors.otp}
-                        disabled={authLoading || isVerifyingOtp}
-                        resendCountdown={resendCountdown}
-                        email={email}
-                        style={{ alignSelf: 'center' }}
-                      />
-                    </View>
-                  )}
+                      {/* Email Field */}
+                      <View style={{ marginBottom: getVerticalSpacing(2), width: '100%' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <View
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                backgroundColor: 'white',
+                                borderRadius: scaleSize(12),
+                                paddingHorizontal: getHorizontalSpacing(2),
+                                paddingVertical: getVerticalSpacing(1),
+                                // Removed conditional marginBottom to keep alignment perfect
+                                marginBottom: 0,
+                                minHeight: scaleHeight(44), // Ensure consistent height with button
+                              }}
+                            >
+                              <Icon
+                                name="mail"
+                                size={scaleSize(20)}
+                                color="#FF6B35"
+                                style={{ marginRight: getHorizontalSpacing(1) }}
+                              />
+                              <TextInput
+                                style={{
+                                  flex: 1,
+                                  color: '#000',
+                                  fontSize: scaleFont(16),
+                                  paddingVertical: getVerticalSpacing(0.5),
+                                }}
+                                value={email}
+                                onChangeText={text => {
+                                  // Auto-append gmail.com only if user just typed @ (not deleting)
+                                  let finalText = text;
+                                  const wasTyping =
+                                    text.length > prevEmail.length ||
+                                    (text.length === prevEmail.length && text !== prevEmail);
+                                  const justTypedAt = text.endsWith('@') && !prevEmail.endsWith('@');
 
-                  {/* Password Field */}
-                  <>
-                    <View style={{ marginBottom: getVerticalSpacing(2) }}>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          backgroundColor: 'white',
-                          borderRadius: scaleSize(12),
-                          paddingHorizontal: getHorizontalSpacing(2),
-                          paddingVertical: getVerticalSpacing(1),
-                          marginBottom: errors.password ? getVerticalSpacing(0.5) : 0,
-                        }}
-                      >
-                        <Icon
-                          name="lock"
-                          size={scaleSize(20)}
-                          color="#FF6B35"
-                          style={{ marginRight: getHorizontalSpacing(1) }}
-                        />
-                        <TextInput
-                          style={{
-                            flex: 1,
-                            color: '#000',
-                            fontSize: scaleFont(16),
-                            paddingVertical: getVerticalSpacing(0.5),
-                          }}
-                          value={password}
-                          onChangeText={text => {
-                            setPassword(text);
-                          }}
-                          placeholder="Password"
-                          placeholderTextColor="#999"
-                          secureTextEntry={!showPassword}
-                          onFocus={() => setActiveField('password')}
-                          onBlur={() => {
-                            setActiveField(null);
-                          }}
-                          selectionColor="#FF6B35"
-                          cursorColor="#FF6B35"
-                        />
-                        <TouchableOpacity
-                          onPress={() => setShowPassword(!showPassword)}
-                          style={{ padding: getHorizontalSpacing(0.5) }}
-                        >
-                          <Icon
-                            name={showPassword ? 'eye-off' : 'eye'}
-                            size={scaleSize(20)}
-                            color="#FF6B35"
-                          />
-                        </TouchableOpacity>
+                                  if (wasTyping && justTypedAt) {
+                                    // User just typed @, auto-append gmail.com
+                                    finalText = text + 'gmail.com';
+                                  }
+
+                                  setPrevEmail(finalText);
+                                  setEmail(finalText);
+                                  setEmailVerified(false);
+                                  setEmailAvailable(null);
+                                  if (errors.email) {
+                                    setErrors(prev => ({ ...prev, email: '' }));
+                                  }
+                                }}
+                                placeholder="Email"
+                                placeholderTextColor="#999"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoComplete="email"
+                                textContentType="emailAddress"
+                                editable={!emailVerified}
+                                onFocus={() => setActiveField('email')}
+                                onBlur={() => {
+                                  setActiveField(null);
+                                }}
+                                selectionColor="#FF6B35"
+                                cursorColor="#FF6B35"
+                              />
+                            </View>
+                          </View>
+
+                          {!emailVerified && !showOtpVerification && !magicLinkSent && (
+                            <TouchableOpacity
+                              onPress={verifyEmail}
+                              disabled={
+                                authLoading || !validateEmail(email) || emailAvailable === false
+                              }
+                              style={{
+                                marginLeft: getHorizontalSpacing(1),
+                                backgroundColor:
+                                  authLoading || !validateEmail(email) || emailAvailable === false
+                                    ? '#999999'
+                                    : '#FF6B35',
+                                paddingVertical: getVerticalSpacing(1), // Matches input container
+                                paddingHorizontal: getHorizontalSpacing(1.5),
+                                borderRadius: scaleSize(12), // Match input container radius
+                                marginBottom: 0,
+                                opacity:
+                                  authLoading || !validateEmail(email) || emailAvailable === false
+                                    ? 0.5
+                                    : 1,
+                                justifyContent: 'center', // Center content
+                                alignItems: 'center',
+                                minHeight: scaleHeight(44), // Ensure consistent height
+                              }}
+                            >
+                              {authLoading || emailChecking ? (
+                                <Text
+                                  style={[
+                                    typography.button,
+                                    { color: 'white', fontSize: scaleFont(14) },
+                                  ]}
+                                >
+                                  ...
+                                </Text>
+                              ) : (
+                                <Text
+                                  style={[
+                                    typography.button,
+                                    { color: 'white', fontSize: scaleFont(14) },
+                                  ]}
+                                >
+                                  Verify
+                                </Text>
+                              )}
+                            </TouchableOpacity>
+                          )}
+
+                          {magicLinkSent && !emailVerified && (
+                            <View
+                              style={{
+                                marginLeft: getHorizontalSpacing(1),
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Icon name="mail" size={scaleSize(24)} color="#FF6B35" />
+                              <Text
+                                style={[
+                                  typography.caption,
+                                  {
+                                    color: '#FF6B35',
+                                    fontSize: scaleFont(10),
+                                    textAlign: 'center',
+                                    marginTop: 2,
+                                  },
+                                ]}
+                              >
+                                Code Sent
+                              </Text>
+                            </View>
+                          )}
+
+                          {emailVerified && (
+                            <Animated.View
+                              style={{
+                                opacity: fadeInVerified,
+                                marginLeft: getHorizontalSpacing(1),
+                              }}
+                            >
+                              <Icon name="check-circle" size={scaleSize(24)} color="#FFD700" />
+                            </Animated.View>
+                          )}
+                        </View>
+
+                        {/* Email availability status & Errors - Moved OUTSIDE the row for alignment */}
+                        <View style={{ paddingHorizontal: getHorizontalSpacing(0.5) }}>
+                          {errors.email && (
+                            <Text
+                              style={{
+                                color: '#FF6B6B',
+                                fontSize: scaleFont(12),
+                                marginTop: getVerticalSpacing(0.5),
+                              }}
+                            >
+                              {errors.email}
+                            </Text>
+                          )}
+
+                          {email && validateEmail(email) && emailAvailable !== null && (
+                            <View
+                              style={{
+                                marginTop: getVerticalSpacing(0.5),
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                              }}
+                            >
+                              {emailAvailable === true ? (
+                                <Text
+                                  style={[
+                                    typography.bodySmall,
+                                    {
+                                      color: 'white',
+                                      fontSize: scaleFont(12),
+                                      fontWeight: '600',
+                                    },
+                                  ]}
+                                >
+                                  ✓ Email Available - You can sign up
+                                </Text>
+                              ) : emailAvailable === false ? (
+                                <Text
+                                  style={[
+                                    typography.bodySmall,
+                                    {
+                                      color: 'white',
+                                      fontSize: scaleFont(12),
+                                      fontWeight: '600',
+                                    },
+                                  ]}
+                                >
+                                  ✗ Email Already Exists - Please login instead
+                                </Text>
+                              ) : null}
+                            </View>
+                          )}
+                        </View>
                       </View>
-                      {errors.password && (
-                        <Text
+
+                      {/* OTP Verification - Show inline when verification is needed */}
+                      {showOtpVerification && (
+                        <View
                           style={{
-                            color: '#FF6B6B',
-                            fontSize: scaleFont(12),
-                            marginTop: getVerticalSpacing(0.5),
-                            marginLeft: getHorizontalSpacing(0.5),
+                            alignItems: 'center',
+                            marginVertical: getVerticalSpacing(2),
+                            marginBottom: getVerticalSpacing(2),
                           }}
                         >
-                          {errors.password}
-                        </Text>
-                      )}
-                      {/* Password Requirements - Display below password field */}
-                      {showPasswordPolicy && (
-                        <View style={{ marginTop: getVerticalSpacing(1) }}>
-                          <PasswordPolicy password={password} />
+                          <OtpInput
+                            length={6}
+                            onComplete={handleOtpComplete}
+                            onResend={handleResendOtp}
+                            error={errors.otp}
+                            disabled={authLoading || isVerifyingOtp}
+                            resendCountdown={resendCountdown}
+                            email={email}
+                            style={{ alignSelf: 'center' }}
+                          />
                         </View>
                       )}
-                    </View>
 
-                    <View style={{ marginBottom: getVerticalSpacing(2) }}>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          backgroundColor: 'white',
-                          borderRadius: scaleSize(12),
-                          paddingHorizontal: getHorizontalSpacing(2),
-                          paddingVertical: getVerticalSpacing(1),
-                          marginBottom: errors.confirmPassword ? getVerticalSpacing(0.5) : 0,
-                        }}
-                      >
-                        <Icon
-                          name="lock"
-                          size={scaleSize(20)}
-                          color="#FF6B35"
-                          style={{ marginRight: getHorizontalSpacing(1) }}
-                        />
-                        <TextInput
-                          style={{
-                            flex: 1,
-                            color: '#000',
-                            fontSize: scaleFont(16),
-                            paddingVertical: getVerticalSpacing(0.5),
-                          }}
-                          value={confirmPassword}
-                          onChangeText={text => {
-                            setConfirmPassword(text);
-                          }}
-                          placeholder="Confirm Password"
-                          placeholderTextColor="#999"
-                          secureTextEntry={!showConfirmPassword}
-                          onFocus={() => setActiveField('confirmPassword')}
-                          onBlur={() => {
-                            setActiveField(null);
-                          }}
-                          selectionColor="#FF6B35"
-                          cursorColor="#FF6B35"
-                        />
-                        <TouchableOpacity
-                          onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                          style={{ padding: getHorizontalSpacing(0.5) }}
-                        >
-                          <Icon
-                            name={showConfirmPassword ? 'eye-off' : 'eye'}
-                            size={scaleSize(20)}
-                            color="#FF6B35"
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      {errors.confirmPassword && (
-                        <Text
-                          style={{
-                            color: '#FF6B6B',
-                            fontSize: scaleFont(12),
-                            marginTop: getVerticalSpacing(0.5),
-                            marginLeft: getHorizontalSpacing(0.5),
-                          }}
-                        >
-                          {errors.confirmPassword}
-                        </Text>
-                      )}
-                    </View>
-                  </>
-
-                  {/* Username Field */}
-                  <View style={{ marginBottom: getVerticalSpacing(2) }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
+                      {/* Password Field */}
+                      <View style={{ marginBottom: getVerticalSpacing(2), width: '100%' }}>
                         <View
                           style={{
                             flexDirection: 'row',
@@ -1791,11 +1676,11 @@ const SignupScreen: React.FC = () => {
                             borderRadius: scaleSize(12),
                             paddingHorizontal: getHorizontalSpacing(2),
                             paddingVertical: getVerticalSpacing(1),
-                            marginBottom: errors.username ? getVerticalSpacing(0.5) : 0,
+                            marginBottom: errors.password ? getVerticalSpacing(0.5) : 0,
                           }}
                         >
                           <Icon
-                            name="user"
+                            name="lock"
                             size={scaleSize(20)}
                             color="#FF6B35"
                             style={{ marginRight: getHorizontalSpacing(1) }}
@@ -1807,444 +1692,548 @@ const SignupScreen: React.FC = () => {
                               fontSize: scaleFont(16),
                               paddingVertical: getVerticalSpacing(0.5),
                             }}
-                            value={username}
+                            value={password}
                             onChangeText={text => {
-                              // Filter out invalid characters - only allow letters, numbers, . and _
-                              const filteredText = text.replace(/[^a-zA-Z0-9._]/g, '');
-
-                              // Limit to 12 characters
-                              const limitedText =
-                                filteredText.length > 12
-                                  ? filteredText.substring(0, 12)
-                                  : filteredText;
-
-                              setUsername(limitedText);
-                              setUsernameAvailable(null);
-
-                              // Clear ALL username errors when typing a new username
-                              const usernameRegex = /^[a-zA-Z0-9._]+$/;
-                              if (
-                                limitedText.length === 0 ||
-                                (usernameRegex.test(limitedText) &&
-                                  limitedText.length >= 3 &&
-                                  limitedText.length <= 12)
-                              ) {
-                                // Clear all username errors including "already exists" errors
-                                setErrors(prev => {
-                                  const newErrors = { ...prev };
-                                  if (newErrors.username) {
-                                    delete newErrors.username;
-                                  }
-                                  return newErrors;
-                                });
-                              } else {
-                                // Set format error if invalid
-                                if (limitedText.length > 0 && !usernameRegex.test(limitedText)) {
-                                  setErrors(prev => ({
-                                    ...prev,
-                                    username:
-                                      'Only letters, numbers, . (period), and _ (underscore) allowed',
-                                  }));
-                                } else if (limitedText.length > 12) {
-                                  setErrors(prev => ({
-                                    ...prev,
-                                    username: 'Username must be 12 characters or less',
-                                  }));
-                                }
-                              }
-
-                              // Clear previous timeout
-                              if (usernameCheckTimeout) {
-                                clearTimeout(usernameCheckTimeout);
-                              }
-
-                              // Instant username availability check - only if valid format and length
-                              if (
-                                limitedText.length >= 3 &&
-                                limitedText.length <= 12 &&
-                                usernameRegex.test(limitedText)
-                              ) {
-                                // Call immediately with very minimal delay for instant feedback
-                                const timeout = setTimeout(async () => {
-                                  await checkUsernameAvailability(limitedText);
-                                }, 150); // Reduced to 150ms for near-instant response
-                                setUsernameCheckTimeout(timeout);
-                              } else if (limitedText.length === 0) {
-                                // Reset state when field is empty
-                                setUsernameAvailable(null);
-                                setUsernameChecking(false);
-                                setErrors(prev => {
-                                  const newErrors = { ...prev };
-                                  if (
-                                    newErrors.username === 'Username already exists' ||
-                                    newErrors.username === 'Username is already taken'
-                                  ) {
-                                    delete newErrors.username;
-                                  }
-                                  return newErrors;
-                                });
-                              }
+                              setPassword(text);
                             }}
-                            placeholder="Username"
+                            placeholder="Password"
                             placeholderTextColor="#999"
-                            maxLength={12}
-                            onFocus={() => setActiveField('username')}
+                            secureTextEntry={!showPassword}
+                            onFocus={() => setActiveField('password')}
                             onBlur={() => {
                               setActiveField(null);
                             }}
-                            autoFocus={activeField === 'username'}
                             selectionColor="#FF6B35"
                             cursorColor="#FF6B35"
                           />
+                          <TouchableOpacity
+                            onPress={() => setShowPassword(!showPassword)}
+                            style={{ padding: getHorizontalSpacing(0.5) }}
+                          >
+                            <Icon
+                              name={showPassword ? 'eye-off' : 'eye'}
+                              size={scaleSize(20)}
+                              color="#FF6B35"
+                            />
+                          </TouchableOpacity>
                         </View>
-                        {/* Username Requirements - Display below username field */}
-                        {showUsernameRequirements && (
-                          <View style={{ marginTop: getVerticalSpacing(1) }}>
-                            <UsernameRequirements username={username} />
-                          </View>
-                        )}
-                        {/* Username availability status - Instant display - Always show when username is valid */}
-                        {username && username.length >= 3 && username.length <= 12 && (
-                          <View
+                        {errors.password && (
+                          <Text
                             style={{
+                              color: '#FF6B6B',
+                              fontSize: scaleFont(12),
                               marginTop: getVerticalSpacing(0.5),
                               marginLeft: getHorizontalSpacing(0.5),
                             }}
                           >
-                            {usernameChecking ? (
-                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Text
-                                  style={[
-                                    typography.bodySmall,
-                                    {
-                                      color: 'rgba(255,255,255,0.8)',
-                                      marginLeft: 0,
-                                      fontSize: scaleFont(12),
-                                    },
-                                  ]}
-                                >
-                                  Checking availability…
-                                </Text>
-                              </View>
-                            ) : usernameAvailable === false ? (
-                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Icon name="x-circle" size={16} color="#FF6B35" />
-                                <Text
-                                  style={[
-                                    typography.bodySmall,
-                                    {
-                                      color: '#FFA366',
-                                      marginLeft: 6,
-                                      fontSize: scaleFont(12),
-                                    },
-                                  ]}
-                                >
-                                  Username already exists
-                                </Text>
-                              </View>
-                            ) : usernameAvailable === true ? (
-                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Icon name="check-circle" size={16} color="#FFD700" />
-                                <Text
-                                  style={[
-                                    typography.bodySmall,
-                                    {
-                                      color: '#FFE55C',
-                                      marginLeft: 6,
-                                      fontSize: scaleFont(12),
-                                    },
-                                  ]}
-                                >
-                                  Username is available
-                                </Text>
-                              </View>
-                            ) : null}
+                            {errors.password}
+                          </Text>
+                        )}
+                        {/* Password Requirements - Display below password field */}
+                        {showPasswordPolicy && (
+                          <View style={{ marginTop: getVerticalSpacing(1) }}>
+                            <PasswordPolicy password={password} />
                           </View>
                         )}
                       </View>
-                    </View>
-                  </View>
 
-                  {/* Country Field */}
-                  <View style={{ marginBottom: getVerticalSpacing(2) }}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setCountryModalVisible(true);
-                      }}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: 'white',
-                        borderRadius: scaleSize(12),
-                        paddingHorizontal: getHorizontalSpacing(2),
-                        paddingVertical: getVerticalSpacing(1),
-                        marginBottom: errors.country ? getVerticalSpacing(0.5) : 0,
-                      }}
-                    >
-                      <Icon
-                        name="globe"
-                        size={scaleSize(20)}
-                        color="#FF6B35"
-                        style={{ marginRight: getHorizontalSpacing(1) }}
-                      />
-                      <Text
-                        style={[
-                          {
-                            flex: 1,
-                            color: country ? '#000' : '#999',
-                            fontSize: scaleFont(16),
-                            paddingVertical: getVerticalSpacing(0.5),
-                          },
-                        ]}
-                      >
-                        {country || 'Country'}
-                      </Text>
-                      <Icon name="chevron-down" size={scaleSize(18)} color="#FF6B35" />
-                    </TouchableOpacity>
-                    {errors.country && (
-                      <Text
-                        style={{
-                          color: '#FF6B6B',
-                          fontSize: scaleFont(12),
-                          marginTop: getVerticalSpacing(0.5),
-                          marginLeft: getHorizontalSpacing(0.5),
-                        }}
-                      >
-                        {errors.country}
-                      </Text>
-                    )}
-                  </View>
-
-                  {/* Date of Birth Field */}
-                  <View style={{ marginBottom: getVerticalSpacing(2) }}>
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setShowDatePicker(true);
-                      }}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: 'white',
-                        borderRadius: scaleSize(12),
-                        paddingHorizontal: getHorizontalSpacing(2),
-                        paddingVertical: getVerticalSpacing(1),
-                        marginBottom: errors.dateOfBirth ? getVerticalSpacing(0.5) : 0,
-                        minHeight: scaleHeight(44), // Ensure minimum touch target
-                      }}
-                    >
-                      <Icon
-                        name="calendar"
-                        size={scaleSize(20)}
-                        color="#FF6B35"
-                        style={{ marginRight: getHorizontalSpacing(1) }}
-                      />
-                      <Text
-                        style={[
-                          {
-                            flex: 1,
-                            color: dateOfBirth ? '#000' : '#999',
-                            fontSize: scaleFont(16),
-                            paddingVertical: getVerticalSpacing(0.5),
-                          },
-                        ]}
-                      >
-                        {dateOfBirth || 'Date of Birth'}
-                      </Text>
-                      <Icon name="chevron-down" size={scaleSize(18)} color="#FF6B35" />
-                    </TouchableOpacity>
-                    {errors.dateOfBirth && (
-                      <Text
-                        style={{
-                          color: '#FF6B6B',
-                          fontSize: scaleFont(12),
-                          marginTop: getVerticalSpacing(0.5),
-                          marginLeft: getHorizontalSpacing(0.5),
-                        }}
-                      >
-                        {errors.dateOfBirth}
-                      </Text>
-                    )}
-                  </View>
-
-                  {/* Referral Code Field (Optional) */}
-                  <View style={{ marginBottom: getVerticalSpacing(2) }}>
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: 'white',
-                        borderRadius: scaleSize(12),
-                        paddingHorizontal: getHorizontalSpacing(2),
-                        paddingVertical: getVerticalSpacing(1),
-                        marginBottom: errors.referralCode ? getVerticalSpacing(0.5) : 0,
-                      }}
-                    >
-                      <Icon
-                        name="gift"
-                        size={scaleSize(20)}
-                        color="#FF6B35"
-                        style={{ marginRight: getHorizontalSpacing(1) }}
-                      />
-                      <TextInput
-                        style={{
-                          flex: 1,
-                          color: '#000',
-                          fontSize: scaleFont(16),
-                          paddingVertical: getVerticalSpacing(0.5),
-                        }}
-                        value={referralCode}
-                        onChangeText={text => {
-                          setReferralCode(text);
-                          setReferralCodeValid(null);
-                          if (errors.referralCode) {
-                            setErrors(prev => {
-                              const newErrors = { ...prev };
-                              delete newErrors.referralCode;
-                              return newErrors;
-                            });
-                          }
-                          // Debounced validation
-                          if (text.trim().length > 0) {
-                            checkReferralCodeDebounced(text);
-                          } else {
-                            setReferralCodeValid(null);
-                            setReferralCodeChecking(false);
-                          }
-                        }}
-                        placeholder="Referral Code (Optional)"
-                        placeholderTextColor="#999"
-                        autoCapitalize="characters"
-                        onFocus={() => setActiveField('referralCode')}
-                        onBlur={() => {
-                          setActiveField(null);
-                        }}
-                        selectionColor="#FF6B35"
-                        cursorColor="#FF6B35"
-                      />
-                      {referralCodeChecking && (
-                        <LottieView
-                          source={require('../../../../assets/animations/LoadingBar.json')}
-                          autoPlay
-                          loop
-                          style={{
-                            width: scaleSize(24),
-                            height: scaleSize(24),
-                            marginLeft: getHorizontalSpacing(1),
-                          }}
-                        />
-                      )}
-                      {referralCode && !referralCodeChecking && referralCodeValid === true && (
-                        <Icon
-                          name="check-circle"
-                          size={scaleSize(20)}
-                          color="#4CAF50"
-                          style={{ marginLeft: getHorizontalSpacing(1) }}
-                        />
-                      )}
-                      {referralCode && !referralCodeChecking && referralCodeValid === false && (
-                        <Icon
-                          name="x-circle"
-                          size={scaleSize(20)}
-                          color="#FF6B6B"
-                          style={{ marginLeft: getHorizontalSpacing(1) }}
-                        />
-                      )}
-                    </View>
-                    {errors.referralCode && (
-                      <Text
-                        style={{
-                          color: '#FF6B6B',
-                          fontSize: scaleFont(12),
-                          marginTop: getVerticalSpacing(0.5),
-                          marginLeft: getHorizontalSpacing(0.5),
-                        }}
-                      >
-                        {errors.referralCode}
-                      </Text>
-                    )}
-                  </View>
-
-                  {/* Create Account Button - Show above keyboard when keyboard is open */}
-                  {keyboardVisible && !showOtpVerification && (
-                    <>
-                      <View
-                        style={{
-                          paddingTop: getVerticalSpacing(0.5),
-                          paddingBottom: 0,
-                        }}
-                      >
-                        <TouchableOpacity
-                          onPress={handleSignup}
-                          disabled={authLoading}
-                          style={{
-                            width: '100%',
-                            alignItems: 'center',
-                            opacity: authLoading ? 0.5 : 1,
-                          }}
-                        >
-                          <Image
-                            source={createAccountButton}
-                            style={{
-                              width: '100%',
-                              height: scaleHeight(50),
-                              maxHeight: scaleHeight(60),
-                            }}
-                            resizeMode="contain"
-                            pointerEvents="none"
-                          />
-                        </TouchableOpacity>
-                      </View>
-
-                      {/* Sign In Link - Show below button when keyboard is open */}
-                      <View
-                        style={{
-                          alignItems: 'center',
-                          paddingHorizontal: getHorizontalSpacing(2),
-                          marginTop: getVerticalSpacing(0.5),
-                        }}
-                      >
+                      <View style={{ marginBottom: getVerticalSpacing(2), width: '100%' }}>
                         <View
                           style={{
                             flexDirection: 'row',
                             alignItems: 'center',
-                            flexWrap: 'wrap',
-                            justifyContent: 'center',
+                            backgroundColor: 'white',
+                            borderRadius: scaleSize(12),
+                            paddingHorizontal: getHorizontalSpacing(2),
+                            paddingVertical: getVerticalSpacing(1),
+                            marginBottom: errors.confirmPassword ? getVerticalSpacing(0.5) : 0,
+                          }}
+                        >
+                          <Icon
+                            name="lock"
+                            size={scaleSize(20)}
+                            color="#FF6B35"
+                            style={{ marginRight: getHorizontalSpacing(1) }}
+                          />
+                          <TextInput
+                            style={{
+                              flex: 1,
+                              color: '#000',
+                              fontSize: scaleFont(16),
+                              paddingVertical: getVerticalSpacing(0.5),
+                            }}
+                            value={confirmPassword}
+                            onChangeText={text => {
+                              setConfirmPassword(text);
+                            }}
+                            placeholder="Confirm Password"
+                            placeholderTextColor="#999"
+                            secureTextEntry={!showConfirmPassword}
+                            onFocus={() => setActiveField('confirmPassword')}
+                            onBlur={() => {
+                              setActiveField(null);
+                            }}
+                            selectionColor="#FF6B35"
+                            cursorColor="#FF6B35"
+                          />
+                          <TouchableOpacity
+                            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                            style={{ padding: getHorizontalSpacing(0.5) }}
+                          >
+                            <Icon
+                              name={showConfirmPassword ? 'eye-off' : 'eye'}
+                              size={scaleSize(20)}
+                              color="#FF6B35"
+                            />
+                          </TouchableOpacity>
+                        </View>
+                        {errors.confirmPassword && (
+                          <Text
+                            style={{
+                              color: '#FF6B6B',
+                              fontSize: scaleFont(12),
+                              marginTop: getVerticalSpacing(0.5),
+                              marginLeft: getHorizontalSpacing(0.5),
+                            }}
+                          >
+                            {errors.confirmPassword}
+                          </Text>
+                        )}
+                      </View>
+
+                      {/* Referral Code Field (Optional) - Moving to Step 1 */}
+                      <View style={{ marginBottom: getVerticalSpacing(2), width: '100%' }}>
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: 'white',
+                            borderRadius: scaleSize(12),
+                            paddingHorizontal: getHorizontalSpacing(2),
+                            paddingVertical: getVerticalSpacing(1),
+                            marginBottom: errors.referralCode ? getVerticalSpacing(0.5) : 0,
+                          }}
+                        >
+                          <Icon
+                            name="gift"
+                            size={scaleSize(20)}
+                            color="#FF6B35"
+                            style={{ marginRight: getHorizontalSpacing(1) }}
+                          />
+                          <TextInput
+                            style={{
+                              flex: 1,
+                              color: '#000',
+                              fontSize: scaleFont(16),
+                              paddingVertical: getVerticalSpacing(0.5),
+                            }}
+                            value={referralCode}
+                            onChangeText={text => {
+                              setReferralCode(text);
+                              setReferralCodeValid(null);
+                              if (errors.referralCode) {
+                                setErrors(prev => {
+                                  const newErrors = { ...prev };
+                                  delete newErrors.referralCode;
+                                  return newErrors;
+                                });
+                              }
+                              // Debounced validation
+                              if (text.trim().length > 0) {
+                                checkReferralCodeDebounced(text);
+                              } else {
+                                setReferralCodeValid(null);
+                                setReferralCodeChecking(false);
+                              }
+                            }}
+                            placeholder="Referral Code (Optional)"
+                            placeholderTextColor="#999"
+                            autoCapitalize="characters"
+                            onFocus={() => setActiveField('referralCode')}
+                            onBlur={() => {
+                              setActiveField(null);
+                            }}
+                            selectionColor="#FF6B35"
+                            cursorColor="#FF6B35"
+                          />
+                          {referralCodeChecking && (
+                            <LottieView
+                              source={require('../../../../assets/animations/LoadingBar.json')}
+                              autoPlay
+                              loop
+                              style={{
+                                width: scaleSize(24),
+                                height: scaleSize(24),
+                                marginLeft: getHorizontalSpacing(1),
+                              }}
+                            />
+                          )}
+                          {referralCode && !referralCodeChecking && referralCodeValid === true && (
+                            <Icon
+                              name="check-circle"
+                              size={scaleSize(20)}
+                              color="#4CAF50"
+                              style={{ marginLeft: getHorizontalSpacing(1) }}
+                            />
+                          )}
+                          {referralCode && !referralCodeChecking && referralCodeValid === false && (
+                            <Icon
+                              name="x-circle"
+                              size={scaleSize(20)}
+                              color="#FF6B6B"
+                              style={{ marginLeft: getHorizontalSpacing(1) }}
+                            />
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Next Button for Step 1 - Professional UI */}
+                      {currentStep === 0 && emailVerified && (
+                        <TouchableOpacity
+                          onPress={handlePasswordNext}
+                          style={{
+                            backgroundColor: '#FF6B35',
+                            paddingVertical: getVerticalSpacing(1.5),
+                            borderRadius: scaleSize(12),
+                            alignItems: 'center',
+                            marginTop: getVerticalSpacing(1),
+                            marginBottom: getVerticalSpacing(2),
+                            width: '100%',
                           }}
                         >
                           <Text
-                            style={[
-                              typography.bodySmall,
-                              {
-                                color: 'white',
-                                fontSize: scaleFont(isSmallDevice ? 12 : 14),
-                                textAlign: 'center',
-                              },
-                            ]}
-                            allowFontScaling={true}
+                            style={[typography.button, { color: 'white', fontSize: scaleFont(16) }]}
                           >
-                            Already have an account?{' '}
+                            Next
                           </Text>
-                          <TouchableOpacity onPress={goToLogin}>
-                            <Text
-                              style={[
-                                typography.bodySmall,
-                                {
-                                  color: 'white',
-                                  fontWeight: 'bold',
-                                  fontSize: scaleFont(isSmallDevice ? 12 : 14),
-                                },
-                              ]}
-                              allowFontScaling={true}
+                        </TouchableOpacity>
+                      )}
+
+                    </Animated.View>
+
+                    {/* STEP 2: Profile Info (Username, Country, DOB, Referral) */}
+                    <Animated.View
+                      style={{
+                        width: width,
+                        paddingHorizontal: getHorizontalSpacing(2),
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flex: 1,
+                        transform: [
+                          {
+                            translateX: horizontalAnimation.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, -width],
+                            }),
+                          },
+                        ],
+                      }}
+                    >
+                      {/* Back Button for Step 2 */}
+                      <TouchableOpacity
+                        onPress={() => slideToStep(0)}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          marginBottom: getVerticalSpacing(2),
+                        }}
+                      >
+                        <Icon name="chevron-left" size={scaleSize(20)} color="white" />
+                        <Text style={[typography.body, { color: 'white', marginLeft: 4 }]}>Back</Text>
+                      </TouchableOpacity>
+
+                      {/* Username Field */}
+                      <View style={{ marginBottom: getVerticalSpacing(2), width: '100%' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ flex: 1, width: '100%' }}>
+                            <View
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                backgroundColor: 'white',
+                                borderRadius: scaleSize(12),
+                                paddingHorizontal: getHorizontalSpacing(2),
+                                paddingVertical: getVerticalSpacing(1),
+                                width: '100%',
+                                marginBottom: errors.username ? getVerticalSpacing(0.5) : 0,
+                              }}
                             >
-                              Sign In
-                            </Text>
-                          </TouchableOpacity>
+                              <Icon
+                                name="user"
+                                size={scaleSize(20)}
+                                color="#FF6B35"
+                                style={{ marginRight: getHorizontalSpacing(1) }}
+                              />
+                              <TextInput
+                                style={{
+                                  flex: 1,
+                                  color: '#000',
+                                  fontSize: scaleFont(16),
+                                  paddingVertical: getVerticalSpacing(0.5),
+                                }}
+                                value={username}
+                                onChangeText={text => {
+                                  // Filter out invalid characters - only allow letters, numbers, . and _
+                                  const filteredText = text.replace(/[^a-zA-Z0-9._]/g, '');
+
+                                  // Limit to 12 characters
+                                  const limitedText =
+                                    filteredText.length > 12
+                                      ? filteredText.substring(0, 12)
+                                      : filteredText;
+
+                                  setUsername(limitedText);
+                                  setUsernameAvailable(null);
+
+                                  // Clear ALL username errors when typing a new username
+                                  const usernameRegex = /^[a-zA-Z0-9._]+$/;
+                                  if (
+                                    limitedText.length === 0 ||
+                                    (usernameRegex.test(limitedText) &&
+                                      limitedText.length >= 3 &&
+                                      limitedText.length <= 12)
+                                  ) {
+                                    // Clear all username errors including "already exists" errors
+                                    setErrors(prev => {
+                                      const newErrors = { ...prev };
+                                      if (newErrors.username) {
+                                        delete newErrors.username;
+                                      }
+                                      return newErrors;
+                                    });
+                                  } else {
+                                    // Set format error if invalid
+                                    if (limitedText.length > 0 && !usernameRegex.test(limitedText)) {
+                                      setErrors(prev => ({
+                                        ...prev,
+                                        username:
+                                          'Only letters, numbers, . (period), and _ (underscore) allowed',
+                                      }));
+                                    } else if (limitedText.length > 12) {
+                                      setErrors(prev => ({
+                                        ...prev,
+                                        username: 'Username must be 12 characters or less',
+                                      }));
+                                    }
+                                  }
+
+                                  // Clear previous timeout
+                                  if (usernameCheckTimeout) {
+                                    clearTimeout(usernameCheckTimeout);
+                                  }
+
+                                  // Instant username availability check - only if valid format and length
+                                  if (
+                                    limitedText.length >= 3 &&
+                                    limitedText.length <= 12 &&
+                                    usernameRegex.test(limitedText)
+                                  ) {
+                                    // Call immediately with very minimal delay for instant feedback
+                                    const timeout = setTimeout(async () => {
+                                      await checkUsernameAvailability(limitedText);
+                                    }, 150); // Reduced to 150ms for near-instant response
+                                    setUsernameCheckTimeout(timeout);
+                                  } else if (limitedText.length === 0) {
+                                    // Reset state when field is empty
+                                    setUsernameAvailable(null);
+                                    setUsernameChecking(false);
+                                    setErrors(prev => {
+                                      const newErrors = { ...prev };
+                                      if (
+                                        newErrors.username === 'Username already exists' ||
+                                        newErrors.username === 'Username is already taken'
+                                      ) {
+                                        delete newErrors.username;
+                                      }
+                                      return newErrors;
+                                    });
+                                  }
+                                }}
+                                placeholder="Username"
+                                placeholderTextColor="#999"
+                                maxLength={12}
+                                onFocus={() => setActiveField('username')}
+                                onBlur={() => {
+                                  setActiveField(null);
+                                }}
+                                autoFocus={activeField === 'username'}
+                                selectionColor="#FF6B35"
+                                cursorColor="#FF6B35"
+                              />
+                            </View>
+                            {/* Username Requirements - Display below username field */}
+                            {showUsernameRequirements && (
+                              <View style={{ marginTop: getVerticalSpacing(1) }}>
+                                <UsernameRequirements username={username} />
+                              </View>
+                            )}
+                            {/* Username availability status - Instant display - Always show when username is valid */}
+                            {username && username.length >= 3 && username.length <= 12 && (
+                              <View
+                                style={{
+                                  marginTop: getVerticalSpacing(0.5),
+                                  marginLeft: getHorizontalSpacing(0.5),
+                                }}
+                              >
+                                {usernameChecking ? (
+                                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Text
+                                      style={[
+                                        typography.bodySmall,
+                                        {
+                                          color: 'rgba(255,255,255,0.8)',
+                                          marginLeft: 0,
+                                          fontSize: scaleFont(12),
+                                        },
+                                      ]}
+                                    >
+                                      Checking availability…
+                                    </Text>
+                                  </View>
+                                ) : usernameAvailable === false ? (
+                                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Icon name="x-circle" size={16} color="#FF6B35" />
+                                    <Text
+                                      style={[
+                                        typography.bodySmall,
+                                        {
+                                          color: '#FFA366',
+                                          marginLeft: 6,
+                                          fontSize: scaleFont(12),
+                                        },
+                                      ]}
+                                    >
+                                      Username already exists
+                                    </Text>
+                                  </View>
+                                ) : usernameAvailable === true ? (
+                                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Icon name="check-circle" size={16} color="#FFD700" />
+                                    <Text
+                                      style={[
+                                        typography.bodySmall,
+                                        {
+                                          color: '#FFE55C',
+                                          marginLeft: 6,
+                                          fontSize: scaleFont(12),
+                                        },
+                                      ]}
+                                    >
+                                      Username is available
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                            )}
+                          </View>
                         </View>
                       </View>
-                    </>
-                  )}
+
+                      {/* Country Field */}
+                      <View style={{ marginBottom: getVerticalSpacing(2), width: '100%' }}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setCountryModalVisible(true);
+                          }}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: 'white',
+                            borderRadius: scaleSize(12),
+                            paddingHorizontal: getHorizontalSpacing(2),
+                            paddingVertical: getVerticalSpacing(1),
+                            marginBottom: errors.country ? getVerticalSpacing(0.5) : 0,
+                          }}
+                        >
+                          <Icon
+                            name="globe"
+                            size={scaleSize(20)}
+                            color="#FF6B35"
+                            style={{ marginRight: getHorizontalSpacing(1) }}
+                          />
+                          <Text
+                            style={[
+                              {
+                                flex: 1,
+                                color: country ? '#000' : '#999',
+                                fontSize: scaleFont(16),
+                                paddingVertical: getVerticalSpacing(0.5),
+                              },
+                            ]}
+                          >
+                            {country || 'Country'}
+                          </Text>
+                          <Icon name="chevron-down" size={scaleSize(18)} color="#FF6B35" />
+                        </TouchableOpacity>
+                        {errors.country && (
+                          <Text
+                            style={{
+                              color: '#FF6B6B',
+                              fontSize: scaleFont(12),
+                              marginTop: getVerticalSpacing(0.5),
+                              marginLeft: getHorizontalSpacing(0.5),
+                            }}
+                          >
+                            {errors.country}
+                          </Text>
+                        )}
+                      </View>
+
+                      {/* Date of Birth Field */}
+                      <View style={{ marginBottom: getVerticalSpacing(2), width: '100%' }}>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            Keyboard.dismiss();
+                            setShowDatePicker(true);
+                          }}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: 'white',
+                            borderRadius: scaleSize(12),
+                            paddingHorizontal: getHorizontalSpacing(2),
+                            paddingVertical: getVerticalSpacing(1),
+                            marginBottom: errors.dateOfBirth ? getVerticalSpacing(0.5) : 0,
+                            minHeight: scaleHeight(44), // Ensure minimum touch target
+                          }}
+                        >
+                          <Icon
+                            name="calendar"
+                            size={scaleSize(20)}
+                            color="#FF6B35"
+                            style={{ marginRight: getHorizontalSpacing(1) }}
+                          />
+                          <Text
+                            style={[
+                              {
+                                flex: 1,
+                                color: dateOfBirth ? '#000' : '#999',
+                                fontSize: scaleFont(16),
+                                paddingVertical: getVerticalSpacing(0.5),
+                              },
+                            ]}
+                          >
+                            {dateOfBirth || 'Date of Birth'}
+                          </Text>
+                          <Icon name="chevron-down" size={scaleSize(18)} color="#FF6B35" />
+                        </TouchableOpacity>
+                        {errors.dateOfBirth && (
+                          <Text
+                            style={{
+                              color: '#FF6B6B',
+                              fontSize: scaleFont(12),
+                              marginTop: getVerticalSpacing(0.5),
+                              marginLeft: getHorizontalSpacing(0.5),
+                            }}
+                          >
+                            {errors.dateOfBirth}
+                          </Text>
+                        )}
+                      </View>
+
+                    </Animated.View>
+                  </View>
                 </ScrollView>
               </View>
 
@@ -2256,6 +2245,7 @@ const SignupScreen: React.FC = () => {
                     paddingTop: getVerticalSpacing(1),
                     backgroundColor: 'transparent',
                     width: '100%',
+                    paddingHorizontal: getHorizontalSpacing(2),
                   }}
                   onLayout={e => setFooterHeight(e.nativeEvent.layout.height)}
                 >
@@ -2289,7 +2279,7 @@ const SignupScreen: React.FC = () => {
                   )}
 
                   {/* Show Create Account button */}
-                  {!showOtpVerification && (
+                  {!showOtpVerification && currentStep === 1 && (
                     <View
                       style={{
                         marginBottom: getVerticalSpacing(1.5),
@@ -2365,10 +2355,10 @@ const SignupScreen: React.FC = () => {
             </View>
           </View>
         </KeyboardAvoidingView>
-      </SafeScreenWrapper>
+      </SafeScreenWrapper >
 
       {/* Existing User Popup */}
-      <ExistingUserPopup
+      < ExistingUserPopup
         visible={showExistingUserPopup}
         onClose={() => setShowExistingUserPopup(false)}
         onLogin={handleExistingUserLogin}
@@ -2378,7 +2368,7 @@ const SignupScreen: React.FC = () => {
       />
 
       {/* Country Picker Modal */}
-      <CountryPicker
+      < CountryPicker
         visible={countryModalVisible}
         onClose={() => {
           setCountryModalVisible(false);
@@ -2515,8 +2505,10 @@ const SignupScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-      {(authLoading || isVerifyingOtp) && <GlobalLoader forceShow={true} />}
-    </GradientBackground>
+      {/* Only show global loader for critical account creation, not background verification */}
+      {authLoading && !isVerifyingOtp && <GlobalLoader forceShow={true} />}
+
+    </GradientBackground >
   );
 };
 

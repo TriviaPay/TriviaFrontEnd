@@ -40,16 +40,16 @@ const initialState: AuthState = {
 // Global authentication state
 let globalAuthState = {
   isAuthenticated: false,
-  user: null,
-  token: null,
-  lastCheck: null,
+  user: null as User | null,
+  token: null as string | null,
+  lastCheck: null as number | null,
 };
 
 export const loadStoredAuth = createAsyncThunk('auth/loadStoredAuth', async () => {
   try {
     const storedUser = await keychainStorage.getUserData();
     const storedToken = await keychainStorage.getAccessToken();
-    const authState = await keychainStorage.getAuthState();
+    await keychainStorage.getAuthState();
 
     // Parse user data to get token if it's stored in user data
     let userToken = null;
@@ -57,7 +57,7 @@ export const loadStoredAuth = createAsyncThunk('auth/loadStoredAuth', async () =
       try {
         const parsedUser = JSON.parse(storedUser);
         userToken = parsedUser.token;
-      } catch (e) {}
+      } catch (e) { }
     } else if (storedUser && storedUser.token) {
       userToken = storedUser.token;
     }
@@ -155,7 +155,7 @@ export const initializeAuth = createAsyncThunk('auth/initializeAuth', async () =
     const authStatus = await authService.initializeAuth();
 
     if (authStatus.isAuthenticated && authStatus.user) {
-      const token = authService.getAccessToken();
+      const token = await authService.getAccessToken();
       return {
         user: authStatus.user,
         token,
@@ -225,6 +225,7 @@ export const createUserWithPassword = createAsyncThunk(
   'auth/createUserWithPassword',
   async ({ email, password, userData }: { email: string; password: string; userData?: any }) => {
     // Legacy method - keeping for compatibility
+    console.log('Legacy createUserWithPassword called with:', { email, password, userData });
     return { success: true };
   }
 );
@@ -262,7 +263,7 @@ export const bindPassword = createAsyncThunk(
       date_of_birth: string;
       referral_code?: string | null;
     },
-    thunkAPI
+    _thunkAPI
   ) => {
     try {
       // Get session token from keychain storage
@@ -281,6 +282,8 @@ export const bindPassword = createAsyncThunk(
         country: userData.country,
         dateOfBirth: userData.date_of_birth,
         referral_code: userData.referral_code || null,
+        tokenPrefix: sessionToken ? `${sessionToken.substring(0, 10)}...` : 'NONE',
+        tokenLength: sessionToken?.length || 0,
       });
 
       // Use apiService for consistent error handling
@@ -682,7 +685,7 @@ const authSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(bindPassword.fulfilled, (state, action) => {
+      .addCase(bindPassword.fulfilled, (state, _action) => {
         state.isLoading = false;
         // Load user data from storage that was set by SignupScreen
         // Note: This will be handled by the async storage wrapper in the actual implementation
@@ -825,7 +828,7 @@ const authSlice = createSlice({
         }
       })
       // Check Session Validity
-      .addCase(checkSessionValidity.pending, state => {
+      .addCase(checkSessionValidity.pending, _state => {
         // Don't set loading for background checks
       })
       .addCase(checkSessionValidity.fulfilled, (state, action) => {
@@ -850,7 +853,7 @@ const authSlice = createSlice({
           // Session is valid - all good
         }
       })
-      .addCase(checkSessionValidity.rejected, (state, action) => {
+      .addCase(checkSessionValidity.rejected, (_state, _action) => {
         // On error, don't logout - might be network issue or transient error
         // Keep user logged in, errors will be handled by token refresh mechanism
         logger.warn('Session check failed (transient error) - keeping user logged in', 'AUTH');
@@ -955,5 +958,5 @@ export const {
 } = authSlice.actions;
 
 // Export thunks
-export { loadStoredAuth, refreshToken, checkSessionValidity, logoutUser };
+// Already exported individually
 export default authSlice.reducer;

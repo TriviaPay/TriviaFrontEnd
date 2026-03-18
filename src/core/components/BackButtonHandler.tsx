@@ -46,14 +46,9 @@ export const BackButtonHandler: React.FC<BackButtonHandlerProps> = ({
     ...config,
   });
 
-  // Safely get navigation with fallback
-  let navigation: any = null;
-  try {
-    navigation = useNavigation();
-  } catch (error) {
-    // Navigation not available yet, will be handled in handleBackPress
-    logger.warn('Navigation not available in BackButtonHandler:', 'APP', error);
-  }
+  // Safely get navigation 
+  // CRITICAL: useNavigation MUST NOT be called inside try...catch (React Hook Rule violation)
+  const navigation = useNavigation();
 
   const backButtonHandlerRef = useRef<(() => boolean) | null>(null);
 

@@ -29,6 +29,8 @@ export const KeyboardManager: React.FC<KeyboardManagerProps> = ({
   const insets = useSafeAreaInsets();
 
   // Platform-specific defaults
+  // Android: use 'undefined' because adjustResize in AndroidManifest handles keyboard natively
+  // iOS: use 'padding' to push content up when keyboard opens
   const defaultBehavior = Platform.OS === 'ios' ? 'padding' : undefined;
   const defaultOffset = Platform.OS === 'ios' ? 0 : 0;
 
@@ -86,7 +88,7 @@ export const KeyboardUtils = {
     if (Platform.OS === 'ios') {
       return Keyboard.addListener('keyboardWillShow', callback);
     }
-    return { remove: () => {} };
+    return { remove: () => { } };
   },
 
   /**
@@ -96,7 +98,7 @@ export const KeyboardUtils = {
     if (Platform.OS === 'ios') {
       return Keyboard.addListener('keyboardWillHide', callback);
     }
-    return { remove: () => {} };
+    return { remove: () => { } };
   },
 };
 

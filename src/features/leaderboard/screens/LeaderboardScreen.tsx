@@ -143,7 +143,7 @@ const LeaderboardScreen: React.FC = () => {
     };
   }, []);
 
-  const [drawDate, setDrawDate] = useState<string | null>(null);
+  const [drawDate, setDrawDate] = useState<string>(() => dayjs().tz('America/New_York').format('YYYY-MM-DD'));
 
   const { data: profileData, isLoading: isProfileLoading } =
     profileApi.useGetProfileQuery(undefined); // Replaced useProfileData
@@ -475,12 +475,8 @@ const LeaderboardScreen: React.FC = () => {
     [activeTab, freeLeaderboard, bronzeLeaderboard, silverLeaderboard]
   );
 
-  // Get draw date for banner - INSTANT RENDER with fallback, API call in background
+  // Draw date logic moved to background to avoid blocking initial render
   useEffect(() => {
-    // CRITICAL: Set fallback date immediately so screen renders instantly
-    const now = dayjs().tz('America/New_York');
-    setDrawDate(now.format('YYYY-MM-DD'));
-
     // CRITICAL: Only fetch if focused to prevent unnecessary API calls
     if (!isFocused) return;
 
@@ -555,21 +551,8 @@ const LeaderboardScreen: React.FC = () => {
   }, [drawDate, scrollAnimation]);
 
 
-  // Effect to manage tab-based fetching and caching
-  useEffect(() => {
-    if (!isFocused) return;
-
-    if (activeTab === 'free' && !isDataFetchedRef.current.free) {
-      refetchFree();
-      isDataFetchedRef.current.free = true;
-    } else if (activeTab === 'bronze' && !isDataFetchedRef.current.bronze) {
-      refetchBronze();
-      isDataFetchedRef.current.bronze = true;
-    } else if (activeTab === 'silver' && !isDataFetchedRef.current.silver) {
-      refetchSilver();
-      isDataFetchedRef.current.silver = true;
-    }
-  }, [activeTab, isFocused, refetchFree, refetchBronze, refetchSilver]);
+  // Tab fetching is handled automatically by RTK Query via the drawDate and skip: !drawDate logic.
+  // We no longer need manual refetch on focus unless we specifically want to force it.
 
   // REMOVED: Manual fetching logic (preloading/refs) logic as RTK Query handles it.
   /*
@@ -577,7 +560,7 @@ const LeaderboardScreen: React.FC = () => {
   useEffect(() => {
      ...
   }, [isFocused]);
-
+  
   // OPTIMIZED: Store fetchData in ref to prevent re-renders
   const leaderboardFetchRef = useRef(leaderboard.fetchData);
   useEffect(() => {

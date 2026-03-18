@@ -15,7 +15,7 @@
     <!-- Image picker permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    
+    <uses-permission android:name="com.android.vending.BILLING" />
     <!-- ⚠️ REMOVED: WRITE_EXTERNAL_STORAGE & READ_EXTERNAL_STORAGE -->
     <!-- ⚠️ REMOVED: These cause crashes on Android 11+ -->
 
